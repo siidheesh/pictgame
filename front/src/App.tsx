@@ -92,7 +92,7 @@ function App(props: Props) {
   function convertCoords(x: number, y: number) {
     const rect = canvasRef.current.getBoundingClientRect();
     const canvasX = Math.floor(x - rect.left); // ts actually caught me using parseInt instead of Math.floor/toFixed... heh.
-    const canvasY = Math.floor(y - rect.top + window.scrollY);
+    const canvasY = Math.floor(y - rect.top);
     return [canvasX, canvasY];
   }
 
@@ -225,6 +225,8 @@ function App(props: Props) {
         <Icon icon={eraserIcon} />
       </ToggleButton>
       <p>brushRadius: {brushRadius}</p>
+      <p>currentStroke.length {currentStroke?.points?.length || 0}</p>
+      <p>strokeHistory.length {strokeHistory?.length || 0}</p>
       <ColorPicker
         name="colour"
         defaultValue={brushColour}
