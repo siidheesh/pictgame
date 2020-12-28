@@ -3,9 +3,8 @@ import ToggleButton from "@material-ui/lab/ToggleButton";
 //import CheckIcon from "@material-ui/icons/Check";
 import { Button, Slider } from "@material-ui/core";
 import ColorPicker from "material-ui-color-picker";
-import { Icon, InlineIcon } from '@iconify/react';
-import eraserIcon from '@iconify-icons/mdi/eraser';
-
+import { Icon, InlineIcon } from "@iconify/react";
+import eraserIcon from "@iconify-icons/mdi/eraser";
 
 import "./App.css";
 /*
@@ -32,6 +31,11 @@ function App() {
 */
 
 type Props = { [key: string]: number };
+type Stroke = {
+  colour: string;
+  brushRadius: number;
+  points: Array<[number, number]>;
+};
 
 function App(props: Props) {
   const defaultProps: Props = {
@@ -51,11 +55,12 @@ function App(props: Props) {
   const [eraseMode, setEraseMode] = useState(false);
   const [brushColour, setBrushColour] = useState("#000000");
   const [brushRadius, setbrushRadius] = useState(getProp("brushRadius"));
+  const [currentStroke, setCurrentStroke] = useState({} as Stroke);
+  const [strokeHistory, setStrokeHistory] = useState([] as Stroke[]);
 
-  const canvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas')),
+  const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
     context = useRef<CanvasRenderingContext2D | null>(null),
-    boundRect = useRef<DOMRectReadOnly | null>(null),
-    canvasRef2 = useRef<HTMLCanvasElement>(document.createElement('canvas'));
+    canvasRef2 = useRef<HTMLCanvasElement>(document.createElement("canvas"));
 
   function handleCanvasWheel(e: React.WheelEvent<HTMLCanvasElement>) {
     //console.log(e);
@@ -79,24 +84,21 @@ function App(props: Props) {
     if (ctx === null) {
       const canvas = canvasRef.current;
       context.current = canvas.getContext("2d");
+      return context.current;
     }
     return ctx;
   }
 
   function convertCoords(x: number, y: number) {
-    let rect = boundRect.current;
-    if (rect === null) {
-      boundRect.current = canvasRef.current.getBoundingClientRect();
-      rect = boundRect.current;
-    }
+    const rect = canvasRef.current.getBoundingClientRect();
     const canvasX = Math.floor(x - rect.left); // ts actually caught me using parseInt instead of Math.floor/toFixed... heh.
     const canvasY = Math.floor(y - rect.top + window.scrollY);
     return [canvasX, canvasY];
   }
 
   function startPaint(x: number, y: number, ctx = getCanvasContext()) {
-    if(ctx === null) return;
- 
+    if (ctx === null) return;
+
     setDrawMode(true);
 
     const [canvasX, canvasY] = convertCoords(x, y);
@@ -107,10 +109,17 @@ function App(props: Props) {
     ctx.fillStyle = eraseMode ? "#ffffff" : brushColour;
     ctx.arc(canvasX, canvasY, brushRadius, 0, 2 * Math.PI);
     ctx.fill();
+
+    setCurrentStroke({
+      // start tracking stroke
+      colour: ctx.fillStyle,
+      brushRadius: brushRadius,
+      points: [[canvasX, canvasY]],
+    });
   }
 
   function paint(x: number, y: number, ctx = getCanvasContext()) {
-    if(ctx === null) return;
+    if (ctx === null) return;
 
     const [canvasX, canvasY] = convertCoords(x, y);
 
@@ -122,6 +131,12 @@ function App(props: Props) {
       ctx.moveTo(lastX, lastY);
       ctx.lineTo(canvasX, canvasY);
       ctx.stroke();
+
+      setCurrentStroke({
+        // append canvasXY to current stroke
+        ...currentStroke,
+        points: [...currentStroke.points, [canvasX, canvasY]],
+      });
     } else return;
 
     setLastX(canvasX);
@@ -129,53 +144,71 @@ function App(props: Props) {
   }
 
   function endPaint() {
-    if (drawMode) setDrawMode(false); // reset draw mode. eraseMode is manually (un)set by user
+    if (drawMode) {
+      setDrawMode(false); // reset draw mode. eraseMode is manually (un)set by user
+
+      console.log(currentStroke);
+
+      setStrokeHistory([
+        // store the tracked stroke
+        ...strokeHistory,
+        currentStroke,
+      ]);
+
+      setCurrentStroke({
+        // reset current stroke
+        colour: "",
+        brushRadius: 0,
+        points: [],
+      });
+    }
   }
 
   function clearCanvas() {
     const ctx = getCanvasContext();
     if (ctx != null)
       ctx.clearRect(0, 0, getProp("canvasSize"), getProp("canvasSize"));
+    console.log(strokeHistory);
+    console.log(JSON.stringify(strokeHistory));
+    setStrokeHistory([]);
+  }
+
+  function playStrokeHistory(_strokeHistory=strokeHistory) {
+    if (canvasRef2.current === null) return;
+    const ctx = canvasRef2.current.getContext("2d");
+    if (ctx === null) return;
+    ctx.clearRect(0, 0, getProp("canvasSize"), getProp("canvasSize"));
+
+    for (const _stroke of _strokeHistory) {
+      ctx.beginPath();
+      ctx.fillStyle = _stroke.colour;
+      ctx.arc(
+        _stroke.points[0][0],
+        _stroke.points[0][1],
+        _stroke.brushRadius,
+        0,
+        2 * Math.PI
+      );
+
+      ctx.fill();
+      ctx.lineWidth = _stroke.brushRadius * 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = _stroke.colour;
+
+      for (let i = 0; i < _stroke.points.length - 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(_stroke.points[i][0], _stroke.points[i][1]);
+        ctx.lineTo(_stroke.points[i + 1][0], _stroke.points[i + 1][1]);
+        ctx.stroke();
+      }
+    }
   }
 
   function saveImage() {
-    const ctx = getCanvasContext();
-    if(ctx != null) {
-      const image = ctx.getImageData(0, 0, getProp("canvasSize"), getProp("canvasSize"));
-      console.log(image);
-      if (canvasRef2.current != null) {
-        const ctx = canvasRef2.current.getContext("2d");
-        if (ctx != null) {
-          ctx.clearRect(0, 0, getProp("canvasSize"), getProp("canvasSize"));
-          ctx.putImageData(image, 0, 0);
-        }
-      }
-    }
-    //const dataURL = canvas.toDataURL("image/png", 0.5);
-    //console.log(dataURL);
-    /*
-    const withoutAlpha = new Uint8ClampedArray((image.data.length / 4) * 3);
-    for(let i = 0; i < image.data.length; i += 4) { //keep only alpha
-      withoutAlpha[i] = image.data[i+3];
-    }
-    console.log(withoutAlpha);
-    const withAlpha = new Uint8ClampedArray((withoutAlpha.length / 1) * 4);
-    for(let i = 0; i < withoutAlpha.length; i += 1) { //add rest
-      withAlpha[i] = 0;//withoutAlpha[i];
-      withAlpha[i+1] = 0;//withoutAlpha[i+1];
-      withAlpha[i+2] = 0;//withoutAlpha[i+2];
-      withAlpha[i+4] = withoutAlpha[i];
-    }
-    console.log(withAlpha);
-    const imageData = new ImageData(withAlpha, 300*300);*/
+    console.log(strokeHistory);
+    console.log(JSON.stringify(strokeHistory));
+    playStrokeHistory(strokeHistory);
   }
-
-  useEffect(() => { // bounding box changes on viewport change, hence the need to update it
-    //update canvas and context refs
-    context.current = canvasRef.current.getContext("2d");
-    boundRect.current = canvasRef.current.getBoundingClientRect();
-    console.log(boundRect.current.left, boundRect.current.top);
-  }, [canvasRef]);
 
   return (
     <div className="App">
@@ -189,7 +222,7 @@ function App(props: Props) {
         selected={eraseMode}
         onChange={() => setEraseMode(!eraseMode)}
       >
-       <Icon icon={eraserIcon} /> 
+        <Icon icon={eraserIcon} />
       </ToggleButton>
       <p>brushRadius: {brushRadius}</p>
       <ColorPicker
@@ -219,6 +252,11 @@ function App(props: Props) {
       <p>
         <Button variant="contained" color="secondary" onClick={clearCanvas}>
           Clear
+        </Button>
+      </p>
+      <p>
+        <Button variant="contained" color="secondary" onClick={() => playStrokeHistory()}>
+          Retrace history
         </Button>
       </p>
       <canvas
