@@ -1,22 +1,49 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Button } from "@material-ui/core";
+import { MutableRefObject, useState, useRef, useEffect } from "react";
 
-type Props = { [key: string]: number };
-type Stroke = {
-  colour: string;
-  brushRadius: number;
-  points: Array<[number, number]>;
+
+export interface Stroke {
+    colour: string;
+    brushRadius: number;
+    points: Array<[number, number]>;
+  };
+  
+export interface Props {
+  strokeHistory: MutableRefObject<Stroke[]>,
+  onStrokeHistoryChange: (_: Stroke[]) => void,//React.Dispatch<React.SetStateAction<Stroke[]>>;
+  forcedHistory: Stroke[],
+  brushRadius: number,
+  brushColour: string,
+  eraseMode: boolean
 };
 
+/**
+ * Component for a canvas to draw and show drawings on
+ *
+ * @component
+ */
 function Canvas(props: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
+ 
   const [currentStroke, setCurrentStroke] = useState({} as Stroke);
-  const [strokeHistory, setStrokeHistory] = useState([] as Stroke[]);
 
-  const lastX = useRef(0),
-    lastY = useRef(0),
-    drawMode = useRef(false);
+  const strokeHistory = props.strokeHistory;
+  const setStrokeHistory = props.onStrokeHistoryChange;
+  const forcedHistory = props.forcedHistory;
+  
+  const brushColour = props.brushColour;
+  const brushRadius = props.brushRadius;
+  const eraseMode = props.eraseMode;
 
+  const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
+        lastX = useRef(0),
+        lastY = useRef(0),
+        drawMode = useRef(false);
+
+  /**
+   * Converts client coords (mouse/touch) to canvas-rel coords
+   *
+   * @param {number} x x coord rel to client
+   * @param {number} x y coord rel to client
+   */
   function convertCoords(x: number, y: number) {
     const rect = canvasRef.current.getBoundingClientRect();
     const canvasX = Math.floor(x - rect.left); // ts actually caught me using parseInt instead of Math.floor/toFixed... heh.
@@ -29,7 +56,7 @@ function Canvas(props: Props) {
     y: number,
     ctx: CanvasRenderingContext2D | null
   ) {
-    console.log("handlePaintStart");
+    //console.log("handlePaintStart");
     if (drawMode.current || ctx === null) return;
 
     drawMode.current = true;
@@ -40,8 +67,8 @@ function Canvas(props: Props) {
 
     setCurrentStroke({
       // start tracking stroke
-      colour: ctx.fillStyle as string,
-      brushRadius: 5,
+      colour: eraseMode ? '#ffffff' : brushColour,
+      brushRadius: brushRadius,
       points: [[canvasX, canvasY]],
     });
   }
@@ -51,7 +78,7 @@ function Canvas(props: Props) {
     y: number,
     ctx: CanvasRenderingContext2D | null
   ) {
-    console.log("handlePaint");
+    //console.log("handlePaint");
     if (!drawMode.current || ctx === null) return;
 
     const [canvasX, canvasY] = convertCoords(x, y);
@@ -67,30 +94,31 @@ function Canvas(props: Props) {
   }
 
   function handlePaintEnd() {
-    console.log("handlePaintEnd");
+    //console.log("handlePaintEnd");
     if (!drawMode.current) return;
     drawMode.current = false;
     if (currentStroke)
       setStrokeHistory([
         // store the tracked stroke
-        ...strokeHistory,
+        ...strokeHistory.current,
         currentStroke,
       ]);
     setCurrentStroke({} as Stroke);
   }
 
-/**
- * Returns x raised to the n-th power.
- *
- * @param {number} x The number to raise.
- * @param {number} n The power, must be a natural number.
- * @return {number} x raised to the n-th power.
- */
-  function drawOnCanvas(stroke: Stroke, lastPointOnly=true) { //
+  /**
+   * Draws strokes on the canvas
+   *
+   * @param {Stroke=currentStroke} stroke The stroke to draw
+   * @param {boolean=true} lastPointOnly Whether to draw the stroke's last point, or all its points
+   */
+  function drawOnCanvas(stroke: Stroke = currentStroke, lastPointOnly = true) {
+    //
     const ctx = canvasRef.current.getContext("2d");
     if (ctx === null || !stroke || !stroke.points) {
-        return;
-    } else if (stroke.points.length == 1) { // draw circle at initial point
+      return;
+    } else if (stroke.points.length === 1) {
+      // draw circle at initial point
       ctx.beginPath();
       ctx.fillStyle = stroke.colour;
       ctx.arc(
@@ -105,45 +133,36 @@ function Canvas(props: Props) {
       ctx.lineWidth = stroke.brushRadius * 2;
       ctx.lineCap = "round";
       ctx.strokeStyle = stroke.colour;
+
       ctx.beginPath();
-      if(lastPointOnly) { // only paint last point
-        //ctx.beginPath();
-        ctx.moveTo(stroke.points[stroke.points.length - 2][0], stroke.points[stroke.points.length - 2][1]);
-        ctx.lineTo(
-            stroke.points[stroke.points.length - 1][0],
-            stroke.points[stroke.points.length - 1][1]
-        );
-        //ctx.stroke();
-      } else for (let i = 0; i < stroke.points.length - 1; i++) { // paint all points
-        //ctx.beginPath();
+      for (
+        let i = lastPointOnly ? stroke.points.length - 2 : 0; // jump to second-last point if lastPointOnly
+        i < stroke.points.length - 1;
+        i++
+      ) {
         ctx.moveTo(stroke.points[i][0], stroke.points[i][1]);
-        ctx.lineTo(
-            stroke.points[i + 1][0],
-            stroke.points[i + 1][1]
-        );
-        //ctx.stroke();
+        ctx.lineTo(stroke.points[i + 1][0], stroke.points[i + 1][1]);
       }
       ctx.stroke();
     }
   }
 
-  // update canvas element on current stroke
-  useEffect(() => drawOnCanvas(currentStroke), [currentStroke]);
+  useEffect(drawOnCanvas, [currentStroke]); // drawOnCanvas on currentStroke change
 
-  function replayStrokes() {
-    console.log(strokeHistory);
+  useEffect(() => console.log("*****************RENDER**************"));
+
+  useEffect(() => {
+    //clear and redraw on forcedHistory change
+    console.log("FORCED HISTORY REDRAW**************************");
+    console.log(forcedHistory);
     const ctx = canvasRef.current.getContext("2d");
     if (ctx !== null) ctx.clearRect(0, 0, 400, 400);
-    const copyStrokeHistory = JSON.parse(
-      JSON.stringify(strokeHistory)
-    ) as Stroke[];
-    copyStrokeHistory.forEach(stroke => drawOnCanvas(stroke, false)); //manually call draw function
-    setStrokeHistory(copyStrokeHistory);
-  }
+    forcedHistory.forEach((stroke) => drawOnCanvas(stroke, false)); //manually call draw function
+    setStrokeHistory(forcedHistory);
+  }, [forcedHistory]);
 
   return (
     <div className="canvas1">
-      <Button onClick={replayStrokes}>Test replay</Button>
       <canvas
         ref={canvasRef}
         height={400}
