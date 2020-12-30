@@ -1,0 +1,5 @@
+(idk what the best practice is for jotting down thoughts)
+
+31/12/2020:
+
+premature optimisation - realised i was guilty of this when i refactored Canvas out into its own component. should have written template code for interfacing with the backend to see which variables i should assign to state and to whose state.
