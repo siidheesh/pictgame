@@ -1,8 +1,7 @@
 const debug =
     process.env.NODE_ENV === "development" || true ? console.log : () => {};
 const PORT = process.env.PORT || 5000;
-const pictgameChn = process.env.PICTGAME_CHN || pictgameChn;
-const serverId = process.env.SERVERID ? `pgn_${process.env.SERVERID}` : "pgn_1";
+const pictgameChannel = process.env.PICTGAME_CHN || "pictgame";
 const redisOpt = {
     host: "192.168.1.39",
     port: 6379,
@@ -12,9 +11,9 @@ const redisOpt = {
 const app = require("express")();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http);
-
-const IORedis = require("ioredis");
+const { nanoid } = require("nanoid");
 const Redis = require("ioredis");
+
 const redis = new Redis(redisOpt);
 const pub = new Redis(redisOpt);
 const sub = new Redis(redisOpt);
@@ -23,155 +22,94 @@ redis.on("error", debug);
 
 /*
 
-client A emits SCAN => server pubs SCAN 
-=> subs emit SCAN to clients (orig sender ignores by checking clientId) 
-=> interested clients emit HELLO
-=> subs recv HELLO, emit HELLO to its clients 
-=> client A emits MATCHREQ and its public key to B
-=> client B, if it accepts, emits MATCHOK with its public key to A
-=> DH kex done, both generate shared secret for enc/dec
+client A emits HELLO => server publishes HELLO 
+=> subs emit HELLO to their respective clients
+=> interested clients contact A directly by emitting DATA to their server
+=> A chooses one (if available) and they negotiate
 
-ideally server should relay communications between them now, but how?
+TODO: 
 
-client A emits DATA cipertext to targetId
-=> server pubs DATA, sourceId, targetId
-=> sub with client B sends cipertext to it
-=> Client B decrypts DATA and acts on it
-(repeat as needed)
+replace this with a STUN/TURN server for webrtc p2p
+add rate-limiting
 
 */
 
-sub.subscribe(pictgameChn);
+sub.subscribe(pictgameChannel);
 
-const rooms = new Set();
+sub.on("message", (chn, msg) => {
+    //debug(chn, msg);
 
-sub.on("message", async (chn, msg) => {
-    debug(chn, msg);
-    if (chn == pictgameChn) {
+    if (chn === pictgameChannel) {
+        try {
+            msg = JSON.parse(msg);
+        } catch (e) {
+            debug(e);
+            return;
+        }
 
-        msg = JSON.parse(msg);
+        if (!msg || !("type" in msg && "source" in msg && "data" in msg))
+            return;
 
-        if (!msg || !("type" in msg)) return;
-
-        const ids = await io.allSockets();
-
-        debug(ids);
+        const res = {
+            source: msg.source,
+            data: msg.data,
+        };
 
         switch (msg.type) {
-            case "SCAN":
-                io.emit("SCAN", {
-                    sourceId: msg.sourceId,
-                    sourceData: msg.sourceData,
-                });
-                break;
             case "HELLO":
-                if (ids.has(msg.targetId)) {
-                    debug(`we have ${msg.targetId}, sending HELLO`);
-                    io.to(msg.targetId).emit("HELLO", {
-                        sourceId: msg.sourceId,
-                        sourceData: msg.sourceData,
-                    });
-                } else debug("not for us");
-                break;
-            case "MATCHREQ": // TODO: remove these as we only need DATA, let clients negotiate
-            case "MATCHOK":
-                if (ids.has(msg.targetId)) {
-                    debug(`we have ${msg.targetId}, sending ${msg.type}`);
-                    io.to(msg.targetId).emit(msg.type, {
-                        sourceId: msg.sourceId,
-                        publicKey: msg.publicKey, //each side sends their public key
-                    });
-                } else debug("not for us");
+                io.emit("HELLO", res);
                 break;
             case "DATA":
-                // TODO: find way to check auth (current soln: dh kex and cipertext)
-                if (ids.has(msg.targetId)) {
-                    debug(`we have ${msg.targetId}, sending ${msg.type}`);
-                    io.to(msg.targetId).emit("DATA", {
-                        sourceId: msg.sourceId,
-                        data: msg.data, // cipertext as hex
+                if ("target" in msg) {
+                    let found = false;
+                    io.sockets.sockets.forEach((socket) => {
+                        if (found) return;
+                        if (socket && socket.uuid === msg.target) {
+                            debug(`we have ${msg.target}, sending ${msg.type}`);
+                            socket.emit("DATA", res);
+                            found = true;
+                        }
                     });
-                } else debug("not for us");
-            case "DISCONNECT":
+                }
+                break;
             default:
                 break;
         }
     }
 });
-io.on("connection", async (socket) => {
-    // TODO: generate uuid, assign to socket.uuid and use that instead of socket.id
-    debug(`${socket.id} connected`);
 
-    socket.emit(`you are ${socket.id}`);
+//let count = 0;
+//io.engine.generateId = (req) => `custom:${count++}`; // does not work
 
-    socket.on("SCAN", (data) => {
+io.on("connection", (socket) => {
+    socket.uuid = nanoid();
+
+    debug(`${socket.id} connected, uuid: ${socket.uuid}`);
+
+    socket.on("HELLO", (data) => {
         pub.publish(
-            pictgameChn,
-            JSON.stringify({
-                type: "SCAN",
-                sourceId: socket.id,
-                sourceData: data,
-            })
-        );
-    });
-
-    socket.on("HELLO", (targetId, data) => {
-        pub.publish(
-            pictgameChn,
+            pictgameChannel,
             JSON.stringify({
                 type: "HELLO",
-                targetId,
-                sourceId: socket.id,
-                sourceData: data,
-            })
-        );
-    });
-
-    socket.on("MATCHREQ", (targetId) => {
-        pub.publish(
-            pictgameChn,
-            JSON.stringify({
-                type: "MATCHREQ",
-                sourceId: socket.id,
-                targetId,
-            })
-        );
-    });
-
-    socket.on("MATCHOK", (targetId) => {
-        pub.publish(
-            pictgameChn,
-            JSON.stringify({
-                type: "MATCHOK",
-                sourceId: socket.id,
-                targetId,
-            })
-        );
-    });
-
-    socket.on("DATA", (targetId, data) => {
-        pub.publish(
-            pictgameChn,
-            JSON.stringify({
-                type: "DATA",
-                sourceId: socket.id,
-                targetId,
+                source: socket.uuid,
                 data,
             })
         );
-        //io.to(targetId).emit('DATA', data);
     });
 
-    socket.on("disconnect", () => {
+    socket.on("DATA", (target, data) => {
         pub.publish(
-            pictgameChn,
+            pictgameChannel,
             JSON.stringify({
-                type: "DISCONNECT",
-                sourceId: socket.id,
-                matchId: socket.matchId,
+                type: "DATA",
+                source: socket.uuid,
+                target,
+                data,
             })
         );
     });
+
+    socket.emit("hi", socket.uuid);
 });
 
 app.set("trust proxy", 1);
@@ -181,5 +119,5 @@ app.get("/", (req, res) => {
 });
 
 http.listen(PORT, () => {
-    console.log(`server ${serverId} listening on *:${PORT}`);
+    console.log(`server listening on *:${PORT}`);
 });
