@@ -14,11 +14,13 @@ const io = require("socket.io")(http);
 const { nanoid } = require("nanoid");
 const Redis = require("ioredis");
 
-const redis = new Redis(redisOpt);
 const pub = new Redis(redisOpt);
 const sub = new Redis(redisOpt);
 
-redis.on("error", debug);
+const msgType = Object.freeze({ HELLO: 1, DATA: 2 });
+
+pub.on("error", debug);
+sub.on("error", debug);
 
 /*
 
@@ -36,6 +38,11 @@ add rate-limiting
 
 sub.subscribe(pictgameChannel);
 
+const pubMsgIsValid = (msg) =>
+    Array.isArray(msg) &&
+    ((msg[0] === msgType.DATA && msg.length === 4) ||
+        (msg[0] === msgType.HELLO && msg.length === 3));
+
 sub.on("message", (chn, msg) => {
     //debug(chn, msg);
 
@@ -47,32 +54,25 @@ sub.on("message", (chn, msg) => {
             return;
         }
 
-        if (!msg || !("type" in msg && "source" in msg && "data" in msg))
-            return;
+        if (!pubMsgIsValid(msg)) return;
 
-        const res = {
-            source: msg.source,
-            data: msg.data,
-        };
-
-        switch (msg.type) {
-            case "HELLO":
-                io.emit("HELLO", res);
+        switch (msg[0]) {
+            case msgType.HELLO: // msg: [type, source, payload]
+                io.emit("HELLO", [msg[1], msg[2]]);
                 break;
-            case "DATA":
-                if ("target" in msg) {
-                    let found = false;
-                    io.sockets.sockets.forEach((socket) => {
-                        if (found) return;
-                        if (socket && socket.uuid === msg.target) {
-                            debug(`we have ${msg.target}, sending ${msg.type}`);
-                            socket.emit("DATA", res);
-                            found = true;
-                        }
-                    });
-                }
+            case msgType.DATA: // msg: [type, source, target, payload]
+                let found = false;
+                io.sockets.sockets.forEach((socket) => {
+                    if (found) return;
+                    else if (socket && socket.uuid === msg[2]) {
+                        debug(`we have ${msg[2]}, sending ${msg[0]}`);
+                        socket.emit("DATA", [msg[1], msg[3]]);
+                        found = true;
+                    }
+                });
                 break;
             default:
+                debug(`unknown msg.type ${msg[0]}: ${JSON.stringify(msg)}`);
                 break;
         }
     }
@@ -89,27 +89,16 @@ io.on("connection", (socket) => {
     socket.on("HELLO", (data) => {
         pub.publish(
             pictgameChannel,
-            JSON.stringify({
-                type: "HELLO",
-                source: socket.uuid,
-                data,
-            })
+            JSON.stringify([msgType.HELLO, socket.uuid, data])
         );
     });
 
     socket.on("DATA", (target, data) => {
         pub.publish(
             pictgameChannel,
-            JSON.stringify({
-                type: "DATA",
-                source: socket.uuid,
-                target,
-                data,
-            })
+            JSON.stringify([msgType.DATA, socket.uuid, target, data])
         );
     });
-
-    socket.emit("hi", socket.uuid);
 });
 
 app.set("trust proxy", 1);
