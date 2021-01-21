@@ -1,6 +1,5 @@
 import { io } from "socket.io-client";
-import { isContext } from "vm";
-import { assign, actions, send, interpret, createMachine } from "xstate";
+import { Machine, assign, actions, send, interpret, createMachine } from "xstate";
 import { generateKeyPair, exportRawKey } from "./initMachine";
 import {
   importBobKey,
@@ -16,7 +15,7 @@ import {
   _arrayBufferToBase64,
 } from "./util";
 
-const { choose } = actions;
+const { cancel } = actions;
 
 const socket = io("wss://api.siidhee.sh", { autoConnect: false });
 
@@ -59,7 +58,7 @@ const mainMachine = createMachine<MainContext>(
       id: "",
       target: "",
       sharedKey: undefined,
-      helloCounter: 10,
+      helloCounter: 20,
       targetKey: undefined,
       testData: undefined,
       forky: false,
@@ -136,17 +135,20 @@ const mainMachine = createMachine<MainContext>(
           QUIT: "idle",
         },
         onDone: "game",
-        entry: (context) => (context.helloCounter = 10),
+        entry: (context) => (context.helloCounter = 20),
         states: {
           sayHello: {
             entry: ["hello", (context) => context.helloCounter--],
             on: {
+              "": [
+                { target: "#main.idle", cond: (context) => context.helloCounter <= 0 }
+              ],
               RECV_HELLO: {
                 target: "receivedHello",
                 actions: assign({ target: (_, event) => event.source }),
               },
               RECV_REQ: {
-                target: "receivedResponse",
+                target: "acceptance",
                 actions: [
                   assign({
                     target: (_, event) => event.source,
@@ -170,10 +172,10 @@ const mainMachine = createMachine<MainContext>(
           },
           receivedHello: {
             // we can decide here if we want to respond to a HELLO. for now we'll accept all of em
-            entry: "sendMatchReq",
+            //entry: "sendMatchReq",
             on: {
               RECV_RESP: {
-                target: "receivedResponse",
+                target: "acceptance",
                 actions: assign({
                   targetKey: (_, event) => event.key,
                   forky: (_) => false,
@@ -182,57 +184,63 @@ const mainMachine = createMachine<MainContext>(
             },
             after: [
               {
+                delay: () => getRandInRange(0, 100),
+                actions: "sendMatchReq"
+              },
+              {
                 target: "sayHello", // TIMEOUT
-                delay: () => getRandInRange(300, 600),
+                delay: () => getRandInRange(500, 800),
               },
             ],
           },
-          receivedResponse: {
+          acceptance: {
+            id: "acceptance",
+            type: "parallel",
+            onDone: "handshake",
+            on: {
+              TIMEOUT: "#match",
+            },
+            states: {
+              alice: {
+                initial: "wait",
+                states: {
+                  wait: {
+                    on: {
+                      ALICE_ACCEPTS: {
+                        target: "ready",
+                        actions: "sendAcceptance",
+                      },
+                      ALICE_REJECTS: {
+                        target: "#match",
+                        actions: "sendRejection",
+                      },
+                    },
+                  },
+                  ready: { type: "final" },
+                },
+              },
+              bob: {
+                initial: "wait",
+                states: {
+                  wait: {
+                    on: {
+                      BOB_ACCEPTS: "ready",
+                      BOB_REJECTS: "#match",
+                    },
+                  },
+                  ready: { type: "final" },
+                },
+              },
+            },
+          },
+          handshake: {
             // either a MATCHREQ response to our HELLO or MATCHREQ_ACK response to our MATCHREQ response to someone's HELLO
-            initial: "acceptance",
+            initial: "importBobKey",
             on: {
               HANDSHAKE_TIMEOUT: "sayHello",
             },
             onDone: "matched",
             states: {
-              acceptance: {
-                id: "acceptance",
-                type: "parallel",
-                onDone: "importBobKey",
-                on: {
-                  REJECT: "#match",
-                  TIMEOUT: "#match",
-                },
-                states: {
-                  aliceDecision: {
-                    initial: "waitForAlice",
-                    states: {
-                      waitForAlice: {
-                        on: {
-                          ALICE_ACCEPTS: {
-                            target: "ready",
-                            actions: "sendAcceptance",
-                          },
-                        },
-                      },
-                      ready: { type: "final" },
-                    },
-                  },
-                  bobDecision: {
-                    initial: "waitForBob",
-                    states: {
-                      waitForBob: {
-                        on: {
-                          BOB_ACCEPTS: {
-                            target: "ready",
-                          },
-                        },
-                      },
-                      ready: { type: "final" },
-                    },
-                  },
-                },
-              },
               importBobKey: {
                 invoke: {
                   id: "importBobKey",
@@ -248,7 +256,7 @@ const mainMachine = createMachine<MainContext>(
                   id: "generateSharedKey",
                   src: generateSharedKey,
                   onDone: {
-                    target: "handshake",
+                    target: "testConnection",
                     actions: assign({
                       sharedKey: (_, event) => event.data,
                     }),
@@ -258,13 +266,26 @@ const mainMachine = createMachine<MainContext>(
                   },
                 },
               },
-              handshake: {
-                type: "parallel",
+              testConnection: {
+                initial: "fork",
                 after: {
                   1000: { actions: send("HANDSHAKE_TIMEOUT") },
                 },
-                onDone: "ready",
                 states: {
+                  fork: {
+                    on: {
+                      "": [
+                        {
+                          target: "aliceTest",
+                          cond: (context, _) => context.forky,
+                        },
+                        {
+                          target: "bobTest",
+                          cond: (context, _) => !context.forky,
+                        },
+                      ],
+                    },
+                  },
                   aliceTest: {
                     initial: "sendTest",
                     states: {
@@ -292,7 +313,7 @@ const mainMachine = createMachine<MainContext>(
                           id: "checkTest",
                           src: checkTest,
                           onDone: {
-                            target: "ready",
+                            target: "#match.matched",
                             actions: ["sendTestAck"],
                           },
                           onError: {
@@ -300,7 +321,6 @@ const mainMachine = createMachine<MainContext>(
                           },
                         },
                       },
-                      ready: { type: "final" },
                     },
                   },
                   bobTest: {
@@ -326,15 +346,13 @@ const mainMachine = createMachine<MainContext>(
                       },
                       waitForAck: {
                         on: {
-                          RECV_TEST_PASSED: "ready",
+                          RECV_TEST_PASSED: "#match.matched",
                         },
                       },
-                      ready: { type: "final" },
                     },
                   },
                 },
               },
-              ready: { type: "final" },
             },
           },
           matched: { type: "final" },
@@ -350,9 +368,14 @@ const mainMachine = createMachine<MainContext>(
         },
         states: {
           heartbeat: {
-            initial: "init",
+            initial: "fork",
+            on: {
+              HEARTBEAT: {
+                actions: cancel("hbTimer"),
+              },
+            },
             states: {
-              init: {
+              fork: {
                 on: {
                   "": [
                     { target: "lub", cond: (context, _) => context.forky },
@@ -360,13 +383,20 @@ const mainMachine = createMachine<MainContext>(
                   ],
                 },
               },
-              lub: {},
-              dub: {},
+              lub: {
+                //entry: "sendHeartBeat",
+                after: {
+                  //1000: "dub",
+                },
+              },
+              dub: {
+                after: {
+                  //1000: "lub",
+                },
+              },
             },
           },
-          main: {
-
-          }
+          main: {},
         },
       },
       error: {},
@@ -388,6 +418,8 @@ const mainMachine = createMachine<MainContext>(
         }),
       sendAcceptance: (context, _) =>
         socket.emit("DATA", context.target, { type: "USER_ACCEPTS" }),
+      sendRejection: (context, _) =>
+        socket.emit("DATA", context.target, { type: "USER_REJECTS" }),
       sendTest: (context, event) =>
         socket.emit("DATA", context.target, {
           type: "MATCHTEST",
@@ -402,6 +434,8 @@ const mainMachine = createMachine<MainContext>(
         }),
       sendTestAck: (context, _) =>
         socket.emit("DATA", context.target, { type: "MATCHTEST_ACK" }),
+      sendHeartBeat: (context, _) =>
+        socket.emit("DATA", context.target, { type: "HEARTBEAT" }),
       sendQuit: (context, _) =>
         socket.emit("DATA", context.target, { type: "USER_QUIT" }),
     },
@@ -452,6 +486,10 @@ socket.on("DATA", (data: any[]) => {
           console.log(`received a ${payload.type} from ${source}`);
           mainService.send("BOB_ACCEPTS");
           break;
+        case "USER_REJECTS":
+          console.log(`received a ${payload.type} from ${source}`);
+          mainService.send("BOB_REJECTS");
+          break;
         case "MATCHTEST":
           if (!payload.iv || !payload.enc) break;
           console.log(`received a ${payload.type} from ${source}`);
@@ -473,13 +511,13 @@ socket.on("DATA", (data: any[]) => {
           console.log(`received a ${payload.type} from ${source}`);
           mainService.send("QUIT");
           break;
-        case "PING":
+        case "HEARTBEAT":
           console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("PING");
+          mainService.send("HEARTBEAT");
           break;
-        case "PONG":
+        case "GAME":
+          if (!payload.event) break;
           console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("PONG");
           break;
         default:
           break;
@@ -488,8 +526,17 @@ socket.on("DATA", (data: any[]) => {
   }
 });
 
+const match = Machine({
+
+});
+
 socket.on("DATA", console.log);
 
 socket.on("disconnect", () => {
   mainService.send("DISCONNECT");
 });
+
+export const onEvent = (target: string) => (event: any) => {
+  console.log("onEvent invoked", target, event);
+  socket.emit("DATA", target, { type: "GAME", event });
+};
