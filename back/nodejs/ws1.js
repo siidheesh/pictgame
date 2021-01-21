@@ -19,9 +19,7 @@ const io = require("socket.io")(http, {
 });
 const { nanoid } = require("nanoid");
 const Redis = require("ioredis");
-const { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } = require("constants");
 const { clearTimeout } = require("timers");
-const { clear, time } = require("console");
 
 const pub = new Redis(redisOpt);
 const clientsub = new Redis(redisOpt);
@@ -161,7 +159,7 @@ const startHeartbeat = (timer) => {
       serverChannel,
       JSON.stringify({ type: "IMTHELEADER", instanceId, electionTerm })
     );
-    return setTimeout(startHeartbeat, 100);
+    return setTimeout(startHeartbeat, 50);
   }
   return null;
 };
