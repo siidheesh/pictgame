@@ -148,7 +148,10 @@ const becomeCandidate = async () => {
 
 const startLeaderTimer = (timer) => {
   if (timer) clearTimeout(timer);
-  return setTimeout(becomeCandidate, getRandInRange(150, 300));
+  if (leaderId !== instanceId) {
+    return setTimeout(becomeCandidate, getRandInRange(150, 300));
+  }
+  return null;
 };
 
 const startHeartbeat = (timer) => {
