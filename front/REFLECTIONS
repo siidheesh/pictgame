@@ -3,3 +3,16 @@
 31/12/2020:
 
 premature optimisation - realised i was guilty of this when i refactored Canvas out into its own component. should have written template code for interfacing with the backend to see which variables i should assign to state and to whose state.
+
+20/1/2021:
+
+Negotiating a match between two peers with the same codebase s difficult. Decided instead to adopt leader election from raft and use it among the server instances to decide which'll matchmake.
+
+21/1/2021:
+
+Added rough code for raft's leader election, and a state machine impl for it after
+
+22/2/2021:
+
+Added prototype code for phi-accrual failure detection, but atm its useless since the election timeout interval [150,300) is larger than the expected heartbeat interval 50.
+Need to find a way to keep checking if the failure is above the phi threshold, and the same time avoid infinite loops due to timing out too fast
