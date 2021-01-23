@@ -269,7 +269,7 @@ const mainMachine = createMachine<MainContext>(
                   aliceTest: {
                     initial: "sendTest",
                     on: {
-                      RECV_TEST_REPLY: "checkTest",
+                      RECV_TEST_REPLY: ".checkTest",
                     },
                     states: {
                       sendTest: {
@@ -309,7 +309,7 @@ const mainMachine = createMachine<MainContext>(
                   bobTest: {
                     initial: "waitForTest",
                     on: {
-                      RECV_TEST: "replyTest",
+                      RECV_TEST: ".replyTest",
                     },
                     states: {
                       waitForTest: {},
