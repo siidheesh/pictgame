@@ -16,253 +16,246 @@ const { choose } = actions;
 
 const { hazard, getRandInRange, redisOpt, serverChannel } = require("./util");
 
-const Redis = require("ioredis");
-const { nanoid } = require("nanoid");
-const pub = new Redis(redisOpt);
-
-const serversub = new Redis(redisOpt);
-serversub.subscribe(serverChannel);
-
-const raftMachine = createMachine(
-  {
-    initial: "follower",
-    context: {
-      leader: "",
-      instanceId: nanoid(),
-      term: 0,
-      votes: 0,
-      voters: 0,
-      // heartbeat phi-accrual failure detection
-      hbPhi: 8,
-      hbLastArrival: 0,
-      hbCount: 0,
-      hbMean: 0,
-      hbVariance: 0,
-    },
-    on: {
-      IMTHELEADER: {
-        cond: "newerLeader",
-        target: "follower",
-        actions: "leaderAssign",
+module.exports = (id, pub) => {
+  const raftMachine = createMachine(
+    {
+      initial: "follower",
+      context: {
+        leader: "",
+        instanceId: id,
+        term: 0,
+        votes: 0,
+        voters: 0,
+        // heartbeat phi-accrual failure detection
+        hbPhi: 8,
+        hbLastArrival: 0,
+        hbCount: 0,
+        hbMean: 0,
+        hbVariance: 0,
       },
-      // these two are for testing
-      BECOME_CANDIDATE: "startCandidacy",
-      BECOME_FOLLOWER: "follower",
-    },
-    states: {
-      follower: {
-        on: {
-          IMTHELEADER: {
-            target: "follower",
-            actions: choose([
-              {
-                cond: "leaderChanged",
-                actions: "leaderAssign",
-              },
-              { actions: "updateHbParameters" },
-            ]),
-          },
-          VOTE4ME: [
-            {
-              cond: "newerTerm",
-              target: "follower",
-              actions: ["vote", "setVoted"],
-            },
-          ],
+      on: {
+        IMTHELEADER: {
+          cond: "newerLeader",
+          target: "follower",
+          actions: "leaderAssign",
         },
-        after: [
-          /*{
+        // these two are for testing
+        BECOME_CANDIDATE: "startCandidacy",
+        BECOME_FOLLOWER: "follower",
+      },
+      states: {
+        follower: {
+          on: {
+            IMTHELEADER: {
+              target: "follower",
+              actions: choose([
+                {
+                  cond: "leaderChanged",
+                  actions: "leaderAssign",
+                },
+                { actions: "updateHbParameters" },
+              ]),
+            },
+            VOTE4ME: [
+              {
+                cond: "newerTerm",
+                target: "follower",
+                actions: ["vote", "setVoted"],
+              },
+            ],
+          },
+          after: [
+            /*{
             cond: "overPhiThreshold",
             delay: "phiTimeout",
             target: "startCandidacy",
           },*/
-          {
-            delay: "electionTimeout",
-            target: "startCandidacy",
-          },
-        ],
-      },
-      startCandidacy: {
-        entry: "startNewTerm",
-        invoke: {
-          src: "requestVote",
-          onDone: [
             {
-              cond: "notAlone",
-              target: "candidate",
-              actions: "initVotes",
-            },
-            { target: "leader", actions: "leaderAssignSelf" },
-          ],
-        },
-      },
-      candidate: {
-        on: {
-          VOTE: [
-            {
-              cond: "voteIsValid",
-              target: "candidateReceivedVote",
-              actions: "incrementVotes",
-            },
-          ],
-          VOTE4ME: [
-            {
-              cond: "newerTerm",
-              target: "follower",
-              actions: ["vote", "setVoted"],
+              delay: "electionTimeout",
+              target: "startCandidacy",
             },
           ],
         },
-        after: [
-          {
-            delay: "electionTimeout",
-            target: "startCandidacy",
+        startCandidacy: {
+          entry: "startNewTerm",
+          invoke: {
+            src: "requestVote",
+            onDone: [
+              {
+                cond: "notAlone",
+                target: "candidate",
+                actions: "initVotes",
+              },
+              { target: "leader", actions: "leaderAssignSelf" },
+            ],
           },
-        ],
-      },
-      candidateReceivedVote: {
-        always: [
-          {
-            cond: "majorityAchieved",
-            target: "leader",
-            actions: "leaderAssignSelf",
+        },
+        candidate: {
+          on: {
+            VOTE: [
+              {
+                cond: "voteIsValid",
+                target: "candidateReceivedVote",
+                actions: "incrementVotes",
+              },
+            ],
+            VOTE4ME: [
+              {
+                cond: "newerTerm",
+                target: "follower",
+                actions: ["vote", "setVoted"],
+              },
+            ],
           },
-          { target: "candidate" },
-        ],
-      },
-      leader: {
-        entry: "sendHeartbeat",
-        after: {
-          hbPeriod: { target: "leader" },
+          after: [
+            {
+              delay: "electionTimeout",
+              target: "startCandidacy",
+            },
+          ],
+        },
+        candidateReceivedVote: {
+          always: [
+            {
+              cond: "majorityAchieved",
+              target: "leader",
+              actions: "leaderAssignSelf",
+            },
+            { target: "candidate" },
+          ],
+        },
+        leader: {
+          entry: "sendHeartbeat",
+          after: {
+            hbPeriod: { target: "leader" },
+          },
         },
       },
     },
-  },
-  {
-    guards: {
-      newerLeader: (context, event) =>
-        event.instanceId !== context.instanceId && event.term >= context.term,
-      leaderChanged: (context, event) => context.leader !== event.instanceId,
-      notAlone: (context, event) => event.data > 1,
-      newerTerm: (context, event) => event.term > context.term,
-      voteIsValid: (context, event) =>
-        event.term === context.term && event.for === context.instanceId,
-      majorityAchieved: (context, event) => context.votes > context.voters / 2,
-      overPhiThreshold: (context, event) => {
-        if (context.leader === "" || context.hbCount) return true;
-        //debug("hazard",context.hbCount, (Date.now() - context.hbLastArrival), context.hbMean, context.hbVariance**0.5);
-        const phiRes = hazard(
-          Date.now() - context.hbLastArrival,
-          context.hbMean,
-          context.hbVariance
-        );
-        const isOverPhi = context.hbCount ? phiRes > context.hbPhi : true;
-        if (isOverPhi) debug(`${phiRes} is over phi ${context.hbPhi}`);
-        return isOverPhi;
-      },
-    },
-    services: {
-      requestVote: (context, event) => {
-        // this is a service because we'll use its resolved promise as voter count
-        debug(chalk.red.bold("requesting vote for term", context.term));
-        return pub.publish(
-          serverChannel,
-          JSON.stringify({
-            type: "VOTE4ME",
-            instanceId: context.instanceId,
-            term: context.term,
-          })
-        );
-      },
-    },
-    delays: {
-      electionTimeout: (context, event) => getRandInRange(150, 300),
-      //phiTimeout: 10 // needs to be carefully selected: too low and itll keep timing out, too high and electionTimeout might occur
-      hbPeriod: 50,
-    },
-    actions: {
-      sendHeartbeat: (context, event) => {
-        pub.publish(
-          serverChannel,
-          JSON.stringify({
-            type: "IMTHELEADER",
-            instanceId: context.instanceId,
-            term: context.term,
-          })
-        );
-      },
-      vote: (context, event) => {
-        pub.publish(
-          serverChannel,
-          JSON.stringify({
-            type: "VOTE",
-            instanceId: context.instanceId,
-            term: event.term,
-            for: event.instanceId,
-          })
-        );
-      },
-      setVoted: assign({
-        // we don't need context.voted because we'll only ever vote in newer terms
-        term: (context, event) => event.term,
-      }),
-      startNewTerm: assign({
-        leader: "",
-        term: (context, event) => {
-          debug(
-            chalk.red.bold("*****GAP:", Date.now() - context.hbLastArrival)
+    {
+      guards: {
+        newerLeader: (context, event) =>
+          event.instanceId !== context.instanceId && event.term >= context.term,
+        leaderChanged: (context, event) => context.leader !== event.instanceId,
+        notAlone: (context, event) => event.data > 1,
+        newerTerm: (context, event) => event.term > context.term,
+        voteIsValid: (context, event) =>
+          event.term === context.term && event.for === context.instanceId,
+        majorityAchieved: (context, event) =>
+          context.votes > context.voters / 2,
+        overPhiThreshold: (context, event) => {
+          if (context.leader === "" || context.hbCount) return true;
+          //debug("hazard",context.hbCount, (Date.now() - context.hbLastArrival), context.hbMean, context.hbVariance**0.5);
+          const phiRes = hazard(
+            Date.now() - context.hbLastArrival,
+            context.hbMean,
+            context.hbVariance
           );
-          return context.term + 1;
+          const isOverPhi = context.hbCount ? phiRes > context.hbPhi : true;
+          if (isOverPhi) debug(`${phiRes} is over phi ${context.hbPhi}`);
+          return isOverPhi;
         },
-      }),
-      initVotes: assign({
-        votes: 1, // each candidate votes for itself
-        voters: (context, event) => event.data,
-      }),
-      incrementVotes: assign({ votes: (context, event) => context.votes + 1 }),
-      leaderAssignSelf: assign({
-        leader: (context, event) => context.instanceId,
-      }),
-      leaderAssign: assign({
-        voted: false,
-        leader: (context, event) => event.instanceId,
-        term: (context, event) => event.term,
-        hbLastArrival: (_) => Date.now(),
-        hbCount: 0,
-      }),
-      updateHbParameters: assign({
-        // hbMean and hbVariance are MLE estimators, assuming hb inter-arrival time is normal (as per the CLT)
-        hbLastArrival: (context, event) => Date.now(),
-        hbCount: (context, event) => context.hbCount + 1,
-        hbMean: (context, event) =>
-          (context.hbCount * context.hbMean +
-            (Date.now() - context.hbLastArrival)) /
-          (context.hbCount + 1),
-        hbVariance: (context, event) =>
-          (context.hbCount * context.hbVariance +
-            (Date.now() -
-              context.hbLastArrival -
-              (context.hbCount * context.hbMean +
-                (Date.now() - context.hbLastArrival)) /
-                (context.hbCount + 1)) **
-              2) /
-          (context.hbCount + 1),
-      }),
-    },
-  }
-);
+      },
+      services: {
+        requestVote: (context, event) => {
+          // this is a service because we'll use its resolved promise as voter count
+          debug(chalk.red.bold("requesting vote for term", context.term));
+          return pub.publish(
+            serverChannel,
+            JSON.stringify({
+              type: "VOTE4ME",
+              instanceId: context.instanceId,
+              term: context.term,
+            })
+          );
+        },
+      },
+      delays: {
+        electionTimeout: (context, event) => getRandInRange(150, 300),
+        //phiTimeout: 10 // needs to be carefully selected: too low and itll keep timing out, too high and electionTimeout might occur
+        hbPeriod: 50,
+      },
+      actions: {
+        sendHeartbeat: (context, event) => {
+          pub.publish(
+            serverChannel,
+            JSON.stringify({
+              type: "IMTHELEADER",
+              instanceId: context.instanceId,
+              term: context.term,
+            })
+          );
+        },
+        vote: (context, event) => {
+          pub.publish(
+            serverChannel,
+            JSON.stringify({
+              type: "VOTE",
+              instanceId: context.instanceId,
+              term: event.term,
+              for: event.instanceId,
+            })
+          );
+        },
+        setVoted: assign({
+          // we don't need context.voted because we'll only ever vote in newer terms
+          term: (context, event) => event.term,
+        }),
+        startNewTerm: assign({
+          leader: "",
+          term: (context, event) => {
+            debug(
+              chalk.red.bold("*****GAP:", Date.now() - context.hbLastArrival)
+            );
+            return context.term + 1;
+          },
+        }),
+        initVotes: assign({
+          votes: 1, // each candidate votes for itself
+          voters: (context, event) => event.data,
+        }),
+        incrementVotes: assign({
+          votes: (context, event) => context.votes + 1,
+        }),
+        leaderAssignSelf: assign({
+          leader: (context, event) => context.instanceId,
+        }),
+        leaderAssign: assign({
+          voted: false,
+          leader: (context, event) => event.instanceId,
+          term: (context, event) => event.term,
+          hbLastArrival: (_) => Date.now(),
+          hbCount: 0,
+        }),
+        updateHbParameters: assign({
+          // hbMean and hbVariance are MLE estimators, assuming hb inter-arrival time is normal (as per the CLT)
+          hbLastArrival: (context, event) => Date.now(),
+          hbCount: (context, event) => context.hbCount + 1,
+          hbMean: (context, event) =>
+            (context.hbCount * context.hbMean +
+              (Date.now() - context.hbLastArrival)) /
+            (context.hbCount + 1),
+          hbVariance: (context, event) =>
+            (context.hbCount * context.hbVariance +
+              (Date.now() -
+                context.hbLastArrival -
+                (context.hbCount * context.hbMean +
+                  (Date.now() - context.hbLastArrival)) /
+                  (context.hbCount + 1)) **
+                2) /
+            (context.hbCount + 1),
+        }),
+      },
+    }
+  );
 
-const raftService = interpret(raftMachine).start();
+  const raftService = interpret(raftMachine).start();
 
-const imTheLeader = () => raftService.state.matches("leader");
+  const imTheLeader = () => raftService.state.matches("leader");
 
-module.exports = { raftService, imTheLeader };
+  let prevLeader = "";
 
-let prevLeader = "";
-let maxHbMean = 0;
-
-serversub.on("message", (chn, origMsg) => {
-  if (chn === serverChannel) {
+  const processRaftMsg = (origMsg) => {
     let msg = null;
     try {
       msg = JSON.parse(origMsg);
@@ -357,5 +350,9 @@ serversub.on("message", (chn, origMsg) => {
       default:
         break;
     }
-  }
-});
+  };
+
+  return { raftService, processRaftMsg, imTheLeader };
+};
+
+//module.exports =

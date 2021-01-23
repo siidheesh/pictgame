@@ -62,6 +62,8 @@ const mainMachine = createMachine<MainContext>(
       targetKey: undefined,
       testData: undefined,
       forky: false,
+      level: getRandInRange(0, 2),
+      allowLower: Math.random() >= 0.5,
     },
     on: {
       DISCONNECT: [
@@ -389,7 +391,11 @@ const mainMachine = createMachine<MainContext>(
     },
     actions: {
       connect: () => socket.connect(),
-      sendMatchReq: () => socket.emit("MATCHREQ"),
+      sendMatchReq: (context) =>
+        socket.emit("MATCHREQ", {
+          level: context.level,
+          allowLower: context.allowLower,
+        }),
       sendMatchCheck: (context) =>
         socket.emit("DATA", context.target, {
           type: "MATCHCHECK",
