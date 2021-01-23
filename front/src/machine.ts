@@ -64,6 +64,7 @@ const mainMachine = createMachine<MainContext>(
       forky: false,
       level: getRandInRange(0, 2),
       allowLower: Math.random() >= 0.5,
+      encryptedTestData: undefined,
     },
     on: {
       DISCONNECT: [
@@ -260,14 +261,11 @@ const mainMachine = createMachine<MainContext>(
                         target: "bobTest",
                         cond: (context, _) => !context.forky,
                       },
-                    ],
-                    after: {
-                      // testing with webdriver script revealed that bob could enter bobTest too early and miss the RECV_TEST event
-                      100: {
+                      {
                         target: "aliceTest",
                         cond: (context, _) => context.forky,
                       },
-                    },
+                    ],
                   },
                   aliceTest: {
                     initial: "sendTest",
@@ -289,6 +287,9 @@ const mainMachine = createMachine<MainContext>(
                           onError: {
                             actions: send("ERR_SEND_TEST"),
                           },
+                        },
+                        after: {
+                          100: { target: "sendTest" },
                         },
                       },
                       checkTest: {

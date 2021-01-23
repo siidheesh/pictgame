@@ -1,13 +1,13 @@
 // TODO: move to consts.js
 // network congestions could cause hb timeouts if the message broker is not on the same machine as the server instances
 const redisOpt = {
-  host: "localhost",
+  host: "192.168.1.65",
   port: 6379,
   enableAutoPipelining: true,
 };
 
-const clientChannel = process.env.CLIENT_CHN || "pictgame_clients";
-const serverChannel = process.env.SERVER_CHN || "pictgame_servers";
+const clientChannel = "pictgame_clients";
+const serverChannel = "pictgame_servers";
 
 const makeid = (length) => {
   var result = "";

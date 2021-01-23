@@ -332,11 +332,11 @@ module.exports = (id, pub) => {
         process.exit();
         break;
       case "KILLLEADER":
-        if (raftService.state.matches("leader")) process.exit();
+        if (imTheLeader()) process.exit();
         break;
       case "SPLITTEST": // test split votes and fault tolerance
         debug(chalk.bold("*******split*******"));
-        if (raftService.state.matches("leader")) {
+        if (imTheLeader()) {
           process.exit();
         } else if (Math.random() > Math.random()) {
           // get a random proportion
