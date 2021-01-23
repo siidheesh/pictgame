@@ -64,7 +64,6 @@ const mainMachine = createMachine<MainContext>(
       forky: false,
       level: getRandInRange(0, 2),
       allowLower: Math.random() >= 0.5,
-      encryptedTestData: undefined,
     },
     on: {
       DISCONNECT: [
