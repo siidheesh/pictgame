@@ -9,7 +9,7 @@ const app = require("express")();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
   cors: {
-    origin: "https://app.siidhee.sh",
+    origin: ["https://app.siidhee.sh", "localhost", "115.66.128.244"],
     methods: ["GET", "POST"],
   },
 });
@@ -84,7 +84,7 @@ const processClientMsg = (origMsg) => {
         const { level, allowLower } = msg[2];
         const maxLevel = waitingPlayers.length - 1;
         const origLevel = Math.min(maxLevel, level); // set bin count as limit
-        const minLevel = allowLower ? 0 : origLevel; // only check equally-or-higher rated matches if not allowLower
+        const minLevel = allowLower ? 0 : origLevel; // only check equally-or-higher rated bins if not allowLower
         let matchFound = false;
 
         for (let l = maxLevel; l >= minLevel; l--) {
@@ -111,7 +111,7 @@ const processClientMsg = (origMsg) => {
 
         if (!matchFound) {
           // no match was found
-          debug("no available players, saving", msg[1]);
+          debug("no matches:", msg[1], level, allowLower);
           waitingPlayers[origLevel] = {
             ...waitingPlayers[origLevel],
             allowLower,
@@ -184,4 +184,10 @@ app.get("/", (req, res) => {
 
 http.listen(PORT, () => {
   console.log(`server ${instanceId} listening on *:${PORT}`);
+});
+
+process.on("SIGINT", async () => {
+  await pub.quit();
+  await sub.quit();
+  process.exit();
 });

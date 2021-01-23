@@ -1,4 +1,4 @@
-import { useState, useRef, ChangeEvent } from "react";
+import React, { useState, useRef, ChangeEvent } from "react";
 import ToggleButton from "@material-ui/lab/ToggleButton";
 //import CheckIcon from "@material-ui/icons/Check";
 import { Button, Slider, TextField } from "@material-ui/core";
@@ -6,11 +6,13 @@ import { Icon } from "@iconify/react";
 import eraserIcon from "@iconify-icons/mdi/eraser";
 
 import Canvas from "./Canvas";
-import { Stroke } from './Canvas';
+import { Stroke } from "./Canvas";
 
 import "./App.css";
 
-interface Props { [key: string]: any };
+interface Props {
+  [key: string]: any;
+}
 
 function App(props: Props) {
   const defaultProps: Props = {
@@ -19,7 +21,7 @@ function App(props: Props) {
     brushRadiusMax: 50,
     brushRadiusStep: 1,
     canvasSize: 300,
-    brushColour: "black"
+    brushColour: "black",
   };
   const getProp = (propName: string) => {
     return props[propName] ?? defaultProps[propName];
@@ -53,7 +55,12 @@ function App(props: Props) {
         <Icon icon={eraserIcon} />
       </ToggleButton>
       <p>brushRadius: {brushRadius}</p>
-      <TextField label="Color" variant="filled" defaultValue={brushColour} onChange={handleColorChange} />
+      <TextField
+        label="Color"
+        variant="filled"
+        defaultValue={brushColour}
+        onChange={handleColorChange}
+      />
       <Slider
         value={brushRadius}
         getAriaValueText={() => "brushRadius"}
@@ -61,22 +68,43 @@ function App(props: Props) {
         step={getProp("brushRadiusStep")}
         min={getProp("brushRadiusMin")}
         max={getProp("brushRadiusMax")}
-        marks 
+        marks
         valueLabelDisplay="on"
         onChange={(e, value) => setbrushRadius(value as number)}
       />
       <p>
-        <Button variant="contained" color="primary" onClick={() => { console.log(JSON.stringify(strokeHistory.current) ); }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            console.log(JSON.stringify(strokeHistory.current));
+          }}
+        >
           Save
         </Button>
       </p>
       <p>
-        <Button variant="contained" color="primary" onClick={() => { setForcedHistory(JSON.parse(prompt("enter json:") ?? JSON.stringify(forcedHistory))); }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            setForcedHistory(
+              JSON.parse(prompt("enter json:") ?? JSON.stringify(forcedHistory))
+            );
+          }}
+        >
           Load
         </Button>
       </p>
       <p>
-        <Button variant="contained" color="secondary" onClick={() => setForcedHistory([])}>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={() => {
+            setForcedHistory([]);
+            props.onEvent("CLEAR_CANVAS");
+          }}
+        >
           Clear
         </Button>
       </p>
@@ -87,7 +115,9 @@ function App(props: Props) {
       </p>
       <Canvas
         strokeHistory={strokeHistory}
-        onStrokeHistoryChange={(newStrokeHist: Stroke[]) => { strokeHistory.current = newStrokeHist; }}
+        onStrokeHistoryChange={(newStrokeHist: Stroke[]) => {
+          strokeHistory.current = newStrokeHist;
+        }}
         forcedHistory={forcedHistory}
         brushColour={brushColour}
         brushRadius={brushRadius}
