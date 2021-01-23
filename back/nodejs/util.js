@@ -1,3 +1,15 @@
+
+
+//TODO: move to consts.js
+const redisOpt = {
+  host: "192.168.1.39",
+  port: 6379,
+  enableAutoPipelining: true,
+};
+
+const clientChannel = process.env.CLIENT_CHN || "pictgame_clients";
+const serverChannel = process.env.SERVER_CHN || "pictgame_servers";
+
 const makeid = (length) => {
   var result = "";
   var characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -48,5 +60,4 @@ const getRandInRange = (min, max) => {
   return Math.random() * (max - min) + min;
 };
 
-
-module.exports = { makeid, uuidv4, hazard, getRandInRange };
+module.exports = { makeid, uuidv4, hazard, getRandInRange, redisOpt, clientChannel, serverChannel };

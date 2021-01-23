@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import { Machine, assign, actions, send, interpret, createMachine } from "xstate";
+import { assign, actions, send, interpret, createMachine } from "xstate";
 import { generateKeyPair, exportRawKey } from "./initMachine";
 import {
   importBobKey,
@@ -17,7 +17,7 @@ import {
 
 const { cancel } = actions;
 
-const socket = io("wss://api.siidhee.sh", { autoConnect: false });
+const socket = io("wss://api.siidhee.sh", { autoConnect: true });
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -130,68 +130,48 @@ const mainMachine = createMachine<MainContext>(
       },
       match: {
         id: "match",
-        initial: "sayHello",
+        initial: "waiting",
         on: {
           QUIT: "idle",
         },
         onDone: "game",
-        entry: (context) => (context.helloCounter = 20),
         states: {
-          sayHello: {
-            entry: ["hello", (context) => context.helloCounter--],
+          waiting: {
+            entry: "sendMatchReq",
             on: {
-              "": [
-                { target: "#main.idle", cond: (context) => context.helloCounter <= 0 }
-              ],
-              RECV_HELLO: {
-                target: "receivedHello",
-                actions: assign({ target: (_, event) => event.source }),
-              },
-              RECV_REQ: {
+              MATCH_CHECK: {
                 target: "acceptance",
                 actions: [
+                  "sendMatchCheckAck",
                   assign({
                     target: (_, event) => event.source,
                     targetKey: (_, event) => event.key,
                     forky: (_) => true,
                   }),
-                  "sendMatchReqAck",
                 ],
               },
-              HELLO_TIMEOUT: "#main.idle",
+              MATCH_DECREE: {
+                target: "waitForConfirmation",
+                actions: [
+                  "sendMatchCheck",
+                  assign({ target: (_, event) => event.source }),
+                ],
+              },
             },
-            after: {
-              1000: [
-                {
-                  target: "sayHello",
-                  cond: (context) => context.helloCounter > 0,
-                },
-                { actions: send("HELLO_TIMEOUT") },
-              ],
-            },
+            after: [{ delay: "matchWait", target: "waiting" }],
           },
-          receivedHello: {
-            // we can decide here if we want to respond to a HELLO. for now we'll accept all of em
-            //entry: "sendMatchReq",
+          waitForConfirmation: {
             on: {
-              RECV_RESP: {
+              MATCH_CHECK_ACK: {
                 target: "acceptance",
+                cond: (context, event) => event.source === context.target,
                 actions: assign({
                   targetKey: (_, event) => event.key,
                   forky: (_) => false,
                 }),
               },
             },
-            after: [
-              {
-                delay: () => getRandInRange(0, 100),
-                actions: "sendMatchReq"
-              },
-              {
-                target: "sayHello", // TIMEOUT
-                delay: () => getRandInRange(500, 800),
-              },
-            ],
+            after: [{ delay: "matchConfirmation", target: "waiting" }],
           },
           acceptance: {
             id: "acceptance",
@@ -237,7 +217,7 @@ const mainMachine = createMachine<MainContext>(
             // either a MATCHREQ response to our HELLO or MATCHREQ_ACK response to our MATCHREQ response to someone's HELLO
             initial: "importBobKey",
             on: {
-              HANDSHAKE_TIMEOUT: "sayHello",
+              HANDSHAKE_TIMEOUT: "",
             },
             onDone: "matched",
             states: {
@@ -403,17 +383,21 @@ const mainMachine = createMachine<MainContext>(
     },
   },
   {
+    delays: {
+      matchWait: () => getRandInRange(800, 1000),
+      matchConfirmation: () => getRandInRange(300, 500),
+    },
     actions: {
       connect: () => socket.connect(),
-      hello: (context, _) => socket.emit("HELLO", {}),
-      sendMatchReq: (context, _) =>
+      sendMatchReq: () => socket.emit("MATCHREQ"),
+      sendMatchCheck: (context) =>
         socket.emit("DATA", context.target, {
-          type: "MATCHREQ",
+          type: "MATCHCHECK",
           key: context.myPublicKey,
         }),
-      sendMatchReqAck: (context, _) =>
+      sendMatchCheckAck: (context) =>
         socket.emit("DATA", context.target, {
-          type: "MATCHREQ_ACK",
+          type: "MATCHCHECKACK",
           key: context.myPublicKey,
         }),
       sendAcceptance: (context, _) =>
@@ -445,7 +429,7 @@ const mainMachine = createMachine<MainContext>(
 export const mainService = interpret(mainMachine, {
   devTools: true,
 })
-  .onEvent((event) => console.log("event", event))
+  //.onEvent((event) => console.log("event", event))
   /*.onTransition((state) => {
     console.log("stateΔ", state.value, state);
   })*/
@@ -453,11 +437,9 @@ export const mainService = interpret(mainMachine, {
 
 socket.on("INIT", (data: string) => mainService.send("CONNECTED", { data }));
 
-socket.on("HELLO", (data: any[]) => {
-  console.log("onHELLO", data);
-  const source = data[0];
-  //payload = data[1];
-  mainService.send("RECV_HELLO", { source });
+socket.on("MATCH_DECREE", (source: string) => {
+  console.log("onDECREE", source);
+  mainService.send("MATCH_DECREE", { source });
 });
 
 socket.on("DATA", (data: any[]) => {
@@ -467,17 +449,18 @@ socket.on("DATA", (data: any[]) => {
       payload = data[1];
     if (typeof payload === "object" && payload.type) {
       switch (payload.type) {
-        case "MATCHREQ":
+        case "MATCHCHECK":
           if (!payload.key) break;
           console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("RECV_REQ", {
+          mainService.send("MATCH_CHECK", {
             source,
             key: _base64ToArrayBuffer(payload.key),
           });
           break;
-        case "MATCHREQ_ACK":
+        case "MATCHCHECKACK":
+          if (!payload.key) break;
           console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("RECV_RESP", {
+          mainService.send("MATCH_CHECK_ACK", {
             source,
             key: _base64ToArrayBuffer(payload.key),
           });
@@ -525,12 +508,6 @@ socket.on("DATA", (data: any[]) => {
     }
   }
 });
-
-const match = Machine({
-
-});
-
-socket.on("DATA", console.log);
 
 socket.on("disconnect", () => {
   mainService.send("DISCONNECT");

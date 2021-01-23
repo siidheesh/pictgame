@@ -8,14 +8,10 @@
   TODO: refactor into sep. module (done)
 */
 const isDEBUG = process.env.NODE_ENV === "development" || true;
-const debug = isDEBUG ? console.log : () => { };
+const debug = isDEBUG ? console.log : () => {};
+const chalk = require("chalk");
 
-const {
-  createMachine,
-  assign,
-  actions,
-  interpret,
-} = require("xstate");
+const { createMachine, assign, actions, interpret } = require("xstate");
 const { choose } = actions;
 
 const { hazard, getRandInRange, redisOpt, serverChannel } = require("./util");
@@ -41,7 +37,7 @@ const raftMachine = createMachine(
       hbLastArrival: 0,
       hbCount: 0,
       hbMean: 0,
-      hbVariance: 0
+      hbVariance: 0,
     },
     on: {
       IMTHELEADER: {
@@ -63,7 +59,7 @@ const raftMachine = createMachine(
                 cond: "leaderChanged",
                 actions: "leaderAssign",
               },
-              { actions: "updateHbParameters" }
+              { actions: "updateHbParameters" },
             ]),
           },
           VOTE4ME: [
@@ -83,7 +79,7 @@ const raftMachine = createMachine(
           {
             delay: "electionTimeout",
             target: "startCandidacy",
-          }
+          },
         ],
       },
       startCandidacy: {
@@ -135,100 +131,126 @@ const raftMachine = createMachine(
         ],
       },
       leader: {
-        entry: ["sendHeartbeat"],
+        entry: "sendHeartbeat",
         after: {
           hbPeriod: { target: "leader" },
         },
       },
     },
-  }, {
-  guards: {
-    newerLeader: (context, event) => event.instanceId !== context.instanceId && event.term >= context.term,
-    leaderChanged: (context, event) => context.leader !== event.instanceId,
-    notAlone: (context, event) => event.data > 1,
-    newerTerm: (context, event) => event.term > context.term,
-    voteIsValid: (context, event) => event.term === context.term && event.for === context.instanceId,
-    majorityAchieved: (context, event) => context.votes > context.voters / 2,
-    overPhiThreshold: (context, event) => {
-      if (context.leader === "" || !context.hbCount) return false;
-      //debug("hazard",context.hbCount, (Date.now() - context.hbLastArrival), context.hbMean, context.hbVariance**0.5);
-      const phiRes = hazard((Date.now() - context.hbLastArrival), context.hbMean, context.hbVariance);
-      const isOverPhi = context.hbCount ? phiRes > context.hbPhi : true
-      if (isOverPhi) debug(`${phiRes} is over phi ${context.hbPhi}`);
-      return isOverPhi;
-    }
   },
-  services: {
-    requestVote: (context, event) => {
-      // this is a service because we'll use its resolved promise as voter count
-      debug("requesting vote for term", context.term);
-      return pub.publish(
-        serverChannel,
-        JSON.stringify({
-          type: "VOTE4ME",
-          instanceId: context.instanceId,
-          term: context.term,
-        })
-      );
+  {
+    guards: {
+      newerLeader: (context, event) =>
+        event.instanceId !== context.instanceId && event.term >= context.term,
+      leaderChanged: (context, event) => context.leader !== event.instanceId,
+      notAlone: (context, event) => event.data > 1,
+      newerTerm: (context, event) => event.term > context.term,
+      voteIsValid: (context, event) =>
+        event.term === context.term && event.for === context.instanceId,
+      majorityAchieved: (context, event) => context.votes > context.voters / 2,
+      overPhiThreshold: (context, event) => {
+        if (context.leader === "" || context.hbCount) return true;
+        //debug("hazard",context.hbCount, (Date.now() - context.hbLastArrival), context.hbMean, context.hbVariance**0.5);
+        const phiRes = hazard(
+          Date.now() - context.hbLastArrival,
+          context.hbMean,
+          context.hbVariance
+        );
+        const isOverPhi = context.hbCount ? phiRes > context.hbPhi : true;
+        if (isOverPhi) debug(`${phiRes} is over phi ${context.hbPhi}`);
+        return isOverPhi;
+      },
     },
-  },
-  delays: {
-    electionTimeout: (context, event) => getRandInRange(150, 300),
-    //phiTimeout: 10 // needs to be carefully selected: too low and itll keep timing out, too high and electionTimeout might occur
-    hbPeriod: 50
-  },
-  actions: {
-    sendHeartbeat: (context, event) => {
-      pub.publish(
-        serverChannel,
-        JSON.stringify({
-          type: "IMTHELEADER",
-          instanceId: context.instanceId,
-          term: context.term,
-        })
-      );
+    services: {
+      requestVote: (context, event) => {
+        // this is a service because we'll use its resolved promise as voter count
+        debug(chalk.red.bold("requesting vote for term", context.term));
+        return pub.publish(
+          serverChannel,
+          JSON.stringify({
+            type: "VOTE4ME",
+            instanceId: context.instanceId,
+            term: context.term,
+          })
+        );
+      },
     },
-    vote: (context, event) => {
-      pub.publish(
-        serverChannel,
-        JSON.stringify({
-          type: "VOTE",
-          instanceId: context.instanceId,
-          term: event.term,
-          for: event.instanceId,
-        })
-      );
+    delays: {
+      electionTimeout: (context, event) => getRandInRange(150, 300),
+      //phiTimeout: 10 // needs to be carefully selected: too low and itll keep timing out, too high and electionTimeout might occur
+      hbPeriod: 50,
     },
-    setVoted: assign({ // we don't need context.voted because we'll only ever vote in newer terms
-      term: (context, event) => event.term,
-    }),
-    startNewTerm: assign({
-      leader: "",
-      term: (context, event) => context.term + 1,
-    }),
-    initVotes: assign({
-      votes: 1, // each candidate votes for itself
-      voters: (context, event) => event.data,
-    }),
-    incrementVotes: assign({ votes: (context, event) => context.votes + 1 }),
-    leaderAssignSelf: assign({
-      leader: (context, event) => context.instanceId,
-    }),
-    leaderAssign: assign({
-      voted: false,
-      leader: (context, event) => event.instanceId,
-      term: (context, event) => event.term,
-      hbLastArrival: (_) => Date.now(),
-      hbCount: 0
-    }),
-    updateHbParameters: assign({ // hbMean and hbVariance are MLE estimators, assuming hb inter-arrival time is normal (as per the CLT)
-      hbLastArrival: (context, event) => Date.now(),
-      hbCount: (context, event) => context.hbCount + 1,
-      hbMean: (context, event) => ((context.hbCount * context.hbMean) + (Date.now() - context.hbLastArrival)) / (context.hbCount + 1),
-      hbVariance: (context, event) => ((context.hbCount * context.hbVariance) + ((Date.now() - context.hbLastArrival) - ((context.hbCount * context.hbMean) + (Date.now() - context.hbLastArrival)) / (context.hbCount + 1)) ** 2) / (context.hbCount + 1)
-    })
-  },
-});
+    actions: {
+      sendHeartbeat: (context, event) => {
+        pub.publish(
+          serverChannel,
+          JSON.stringify({
+            type: "IMTHELEADER",
+            instanceId: context.instanceId,
+            term: context.term,
+          })
+        );
+      },
+      vote: (context, event) => {
+        pub.publish(
+          serverChannel,
+          JSON.stringify({
+            type: "VOTE",
+            instanceId: context.instanceId,
+            term: event.term,
+            for: event.instanceId,
+          })
+        );
+      },
+      setVoted: assign({
+        // we don't need context.voted because we'll only ever vote in newer terms
+        term: (context, event) => event.term,
+      }),
+      startNewTerm: assign({
+        leader: "",
+        term: (context, event) => {
+          debug(
+            chalk.red.bold("*****GAP:", Date.now() - context.hbLastArrival)
+          );
+          return context.term + 1;
+        },
+      }),
+      initVotes: assign({
+        votes: 1, // each candidate votes for itself
+        voters: (context, event) => event.data,
+      }),
+      incrementVotes: assign({ votes: (context, event) => context.votes + 1 }),
+      leaderAssignSelf: assign({
+        leader: (context, event) => context.instanceId,
+      }),
+      leaderAssign: assign({
+        voted: false,
+        leader: (context, event) => event.instanceId,
+        term: (context, event) => event.term,
+        hbLastArrival: (_) => Date.now(),
+        hbCount: 0,
+      }),
+      updateHbParameters: assign({
+        // hbMean and hbVariance are MLE estimators, assuming hb inter-arrival time is normal (as per the CLT)
+        hbLastArrival: (context, event) => Date.now(),
+        hbCount: (context, event) => context.hbCount + 1,
+        hbMean: (context, event) =>
+          (context.hbCount * context.hbMean +
+            (Date.now() - context.hbLastArrival)) /
+          (context.hbCount + 1),
+        hbVariance: (context, event) =>
+          (context.hbCount * context.hbVariance +
+            (Date.now() -
+              context.hbLastArrival -
+              (context.hbCount * context.hbMean +
+                (Date.now() - context.hbLastArrival)) /
+                (context.hbCount + 1)) **
+              2) /
+          (context.hbCount + 1),
+      }),
+    },
+  }
+);
 
 const raftService = interpret(raftMachine).start();
 
@@ -237,6 +259,7 @@ const imTheLeader = () => raftService.state.matches("leader");
 module.exports = { raftService, imTheLeader };
 
 let prevLeader = "";
+let maxHbMean = 0;
 
 serversub.on("message", (chn, origMsg) => {
   if (chn === serverChannel) {
@@ -258,17 +281,31 @@ serversub.on("message", (chn, origMsg) => {
             term: msg.term,
           });
 
+          /*if (raftService.state.context.hbMean > maxHbMean)
+            maxHbMean = raftService.state.context.hbMean;
+          debug(
+            raftService.state.context.hbCount,
+            maxHbMean,
+            raftService.state.context.hbVariance
+          );*/
+
           if (prevLeader === msg.instanceId) break;
           prevLeader = msg.instanceId;
 
           if (msg.instanceId !== raftService.state.context.instanceId) {
-            debug(msg.instanceId, "is the leader of term", msg.term);
-          } else debug("i am the leader of term", msg.term);
+            debug(
+              chalk.green.bold(
+                msg.instanceId,
+                "is the leader of term",
+                msg.term
+              )
+            );
+          } else debug(chalk.green.bold("i am the leader of term", msg.term));
         }
         break;
       case "VOTE4ME":
         if ("instanceId" in msg && "term" in msg) {
-          debug(msg.instanceId, "asked for vote in term", msg.term);
+          //debug(msg.instanceId, "asked for vote in term", msg.term);
           raftService.send("VOTE4ME", {
             instanceId: msg.instanceId,
             term: msg.term,
@@ -276,8 +313,21 @@ serversub.on("message", (chn, origMsg) => {
         }
         break;
       case "VOTE":
-        if ("instanceId" in msg && "term" in msg && "for" in msg) {
-          debug(msg.instanceId, "voted for", msg.for, "in term", msg.term);
+        if (
+          "instanceId" in msg &&
+          "term" in msg &&
+          "for" in msg &&
+          msg.for === raftService.state.context.instanceId
+        ) {
+          /*debug(
+            chalk.green.bold(
+              msg.instanceId,
+              "voted for",
+              msg.for,
+              "in term",
+              msg.term
+            )
+          );*/
           raftService.send("VOTE", {
             instanceId: msg.instanceId,
             term: msg.term,
@@ -292,10 +342,11 @@ serversub.on("message", (chn, origMsg) => {
         if (raftService.state.matches("leader")) process.exit();
         break;
       case "SPLITTEST": // test split votes and fault tolerance
-        debug("*******split*******");
+        debug(chalk.bold("*******split*******"));
         if (raftService.state.matches("leader")) {
           process.exit();
-        } else if (Math.random() > Math.random()) { // get a random proportion
+        } else if (Math.random() > Math.random()) {
+          // get a random proportion
           debug("candidate");
           raftService.send("BECOME_CANDIDATE"); // startCandidacy
         } else {
