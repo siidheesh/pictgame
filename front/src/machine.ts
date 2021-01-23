@@ -28,7 +28,10 @@ const errors = [
   "ERR_CHECK_TEST",
   "ERR_REPLY_TEST",
 ].reduce((acc: any, evt) => {
-  acc[evt /*.replace("ERR_","error.").toLowerCase()*/] = "error";
+  acc[evt /*.replace("ERR_","error.").toLowerCase()*/] = {
+    target: "error",
+    actions: console.log,
+  };
   return acc;
 }, {});
 
@@ -271,12 +274,12 @@ const mainMachine = createMachine<MainContext>(
                     on: {
                       RECV_TEST_REPLY: ".checkTest",
                     },
+                    entry: assign({
+                      testData: (context, event) =>
+                        window.crypto.getRandomValues(new Uint8Array(10)),
+                    }),
                     states: {
                       sendTest: {
-                        entry: assign({
-                          testData: (context, event) =>
-                            window.crypto.getRandomValues(new Uint8Array(10)),
-                        }),
                         invoke: {
                           id: "encryptTest",
                           src: encryptTest,
