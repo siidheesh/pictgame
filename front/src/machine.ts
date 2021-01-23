@@ -17,7 +17,7 @@ import {
 
 const { cancel } = actions;
 
-const socket = io("ws://localhost:5000", { autoConnect: true });
+const socket = io("wss://api.siidhee.sh", { autoConnect: true });
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -251,7 +251,7 @@ const mainMachine = createMachine<MainContext>(
               testConnection: {
                 initial: "fork",
                 after: {
-                  1000: { actions: send("HANDSHAKE_TIMEOUT") },
+                  2000: { actions: send("HANDSHAKE_TIMEOUT") },
                 },
                 states: {
                   fork: {
@@ -268,15 +268,15 @@ const mainMachine = createMachine<MainContext>(
                   },
                   aliceTest: {
                     initial: "sendTest",
+                    on: {
+                      RECV_TEST_REPLY: "checkTest",
+                    },
                     states: {
                       sendTest: {
                         entry: assign({
                           testData: (context, event) =>
                             window.crypto.getRandomValues(new Uint8Array(10)),
                         }),
-                        on: {
-                          RECV_TEST_REPLY: "checkTest",
-                        },
                         invoke: {
                           id: "encryptTest",
                           src: encryptTest,
@@ -308,12 +308,11 @@ const mainMachine = createMachine<MainContext>(
                   },
                   bobTest: {
                     initial: "waitForTest",
+                    on: {
+                      RECV_TEST: "replyTest",
+                    },
                     states: {
-                      waitForTest: {
-                        on: {
-                          RECV_TEST: "replyTest",
-                        },
-                      },
+                      waitForTest: {},
                       replyTest: {
                         invoke: {
                           id: "replyTest",
