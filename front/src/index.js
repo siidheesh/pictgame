@@ -1,12 +1,12 @@
-import { inspect } from '@xstate/inspect';
-import React from 'react';
-import ReactDOM from 'react-dom';
-import './index.css';
-import App from './App.tsx';
-import Canvas from './Canvas.tsx';
-import Home from './Home';
-import Main from './Main';
-import reportWebVitals from './reportWebVitals';
+import { inspect } from "@xstate/inspect";
+import React from "react";
+import ReactDOM from "react-dom";
+import "./index.css";
+import App from "./App.tsx";
+import Canvas from "./Canvas.tsx";
+//import Home from './Home';
+import Main from "./Main";
+import reportWebVitals from "./reportWebVitals";
 
 /*
 inspect({
@@ -19,7 +19,7 @@ ReactDOM.render(
   <React.StrictMode>
     <Main />
   </React.StrictMode>,
-  document.getElementById('root')
+  document.getElementById("root")
 );
 
 // If you want to start measuring performance in your app, pass a function

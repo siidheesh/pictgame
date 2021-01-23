@@ -9,7 +9,7 @@ const app = require("express")();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
   cors: {
-    origin: ["https://app.siidhee.sh", "localhost", "115.66.128.244"],
+    origin: ["https://app.siidhee.sh", "http://localhost:3001"],
     methods: ["GET", "POST"],
   },
 });

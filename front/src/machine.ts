@@ -17,7 +17,7 @@ import {
 
 const { cancel } = actions;
 
-const socket = io("wss://api.siidhee.sh", { autoConnect: true });
+const socket = io("ws://localhost:5000", { autoConnect: true });
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -255,17 +255,18 @@ const mainMachine = createMachine<MainContext>(
                 },
                 states: {
                   fork: {
-                    on: {
-                      "": [
-                        {
-                          target: "aliceTest",
-                          cond: (context, _) => context.forky,
-                        },
-                        {
-                          target: "bobTest",
-                          cond: (context, _) => !context.forky,
-                        },
-                      ],
+                    always: [
+                      {
+                        target: "bobTest",
+                        cond: (context, _) => !context.forky,
+                      },
+                    ],
+                    after: {
+                      // testing with webdriver script revealed that bob could enter bobTest too early and miss the RECV_TEST event
+                      100: {
+                        target: "aliceTest",
+                        cond: (context, _) => context.forky,
+                      },
                     },
                   },
                   aliceTest: {
@@ -353,7 +354,7 @@ const mainMachine = createMachine<MainContext>(
             initial: "fork",
             on: {
               HEARTBEAT: {
-                actions: cancel("hbTimer"),
+                //actions: cancel("hbTimer"),
               },
             },
             states: {
