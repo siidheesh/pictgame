@@ -17,7 +17,7 @@ import {
 
 const { cancel } = actions;
 
-const socket = io("ws://localhost:5000", { autoConnect: true });
+const socket = io("wss://api.siidhee.sh");
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -69,6 +69,11 @@ const mainMachine = createMachine<MainContext>(
       allowLower: Math.random() >= 0.5,
     },
     on: {
+      CONNECTED: {
+        actions: assign({
+          id: (_, event) => event.data,
+        }),
+      },
       DISCONNECT: [
         {
           target: "disconnected",
@@ -118,14 +123,14 @@ const mainMachine = createMachine<MainContext>(
         onDone: "disconnected",
       },
       disconnected: {
-        entry: ["connect"],
-        on: {
-          CONNECTED: {
+        always: [
+          {
+            cond: (_) => socket.connected,
             target: "idle",
-            actions: assign({
-              id: (_, event) => event.data,
-            }),
           },
+        ],
+        after: {
+          500: { target: "disconnected", actions: "connect" },
         },
       },
       idle: {
@@ -291,7 +296,7 @@ const mainMachine = createMachine<MainContext>(
                           },
                         },
                         after: {
-                          100: { target: "sendTest" },
+                          500: { target: "sendTest" },
                         },
                       },
                       checkTest: {
