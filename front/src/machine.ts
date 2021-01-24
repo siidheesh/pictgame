@@ -17,7 +17,7 @@ import {
 
 const { cancel } = actions;
 
-const socket = io("wss://api.siidhee.sh", { autoConnect: true });
+const socket = io("ws://localhost:5000", { autoConnect: true });
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -311,11 +311,12 @@ const mainMachine = createMachine<MainContext>(
                   },
                   bobTest: {
                     initial: "waitForTest",
-                    on: {
-                      RECV_TEST: ".replyTest",
-                    },
                     states: {
-                      waitForTest: {},
+                      waitForTest: {
+                        on: {
+                          RECV_TEST: "replyTest",
+                        },
+                      },
                       replyTest: {
                         invoke: {
                           id: "replyTest",
