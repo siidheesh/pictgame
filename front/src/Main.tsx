@@ -22,7 +22,7 @@ const Main = (props: any) => {
             my lvl is: {state.context.allowLower && "<="}
             {state.context.level}
           </p>
-          <p>my id is: {state.context.id}</p>
+          <p>my id is: {state.context.name}</p>
           <p>my opp is: {state.context.target}</p>
           {state.matches("match.acceptance.bob.wait") && (
             <p>waiting for bob's reply</p>
@@ -47,7 +47,7 @@ const Main = (props: any) => {
     return (
       <div>
         <p id="currstate">
-          {state.context.id +
+          {state.context.name +
             "|" +
             state.context.target +
             "|" +

@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { isContext } from "vm";
 import { assign, actions, send, interpret, createMachine } from "xstate";
 import { generateKeyPair, exportRawKey } from "./initMachine";
 import {
@@ -58,7 +59,7 @@ const mainMachine = createMachine<MainContext>(
     context: {
       myPrivateKey: undefined,
       myPublicKey: undefined,
-      id: "",
+      name: "",
       target: "",
       sharedKey: undefined,
       helloCounter: 20,
@@ -69,68 +70,89 @@ const mainMachine = createMachine<MainContext>(
       allowLower: Math.random() >= 0.5,
     },
     on: {
-      CONNECTED: {
-        actions: assign({
-          id: (_, event) => event.data,
-        }),
-      },
       DISCONNECT: [
         {
-          target: "disconnected",
-          cond: (context, _) => context.myPrivateKey && context.myPublicKey,
+          target: "init",
+          //cond: (context, _) => context.myPrivateKey && context.myPublicKey,
         },
       ],
       ...errors,
     },
     states: {
       init: {
-        initial: "generatingKeys",
+        type: "parallel",
+        onDone: "idle",
         states: {
-          generatingKeys: {
-            invoke: {
-              id: "generateKeyPair",
-              src: generateKeyPair,
-              onDone: {
-                target: "exportRawKey",
-                actions: assign({
-                  myPrivateKey: (_, event) => event.data.privateKey,
-                }),
+          prepareKeys: {
+            initial: "generatingKeys",
+            states: {
+              generatingKeys: {
+                invoke: {
+                  id: "generateKeyPair",
+                  src: generateKeyPair,
+                  onDone: {
+                    target: "exportRawKey",
+                    actions: assign({
+                      myPrivateKey: (_, event) => event.data.privateKey,
+                    }),
+                  },
+                  onError: {
+                    actions: [send("ERR_GEN_KEYS"), "alertUser"],
+                  },
+                },
               },
-              onError: {
-                actions: send("ERR_GEN_KEYS"),
+              exportRawKey: {
+                invoke: {
+                  id: "exportRawKey",
+                  src: exportRawKey,
+                  onDone: {
+                    target: "ready",
+                    actions: assign({
+                      myPublicKey: (_, event) => event.data,
+                    }),
+                  },
+                  onError: {
+                    actions: send("ERR_EXPORT_KEYS"),
+                  },
+                },
               },
+              ready: { type: "final" },
             },
           },
-          exportRawKey: {
-            invoke: {
-              id: "exportRawKey",
-              src: exportRawKey,
-              onDone: {
-                target: "ready",
-                actions: assign({
-                  myPublicKey: (_, event) => event.data,
-                }),
+          prepareSocket: {
+            initial: "disconnected",
+            states: {
+              disconnected: {
+                on: {
+                  CONNECTED: "waitForName",
+                },
+                always: [
+                  {
+                    cond: (_) => socket.connected,
+                    target: "waitForName",
+                  },
+                ],
+                after: {
+                  500: { target: "disconnected" },
+                },
               },
-              onError: {
-                actions: send("ERR_EXPORT_KEYS"),
+              waitForName: {
+                entry: "sendNameReq",
+                on: {
+                  NAME_DECREE: {
+                    target: "ready",
+                    actions: assign({
+                      name: (_, event) => event.name,
+                    }),
+                  },
+                },
+                after: {
+                  1000: { target: "waitForName" },
+                },
               },
+              ready: { type: "final" },
             },
           },
-          ready: {
-            type: "final",
-          },
-        },
-        onDone: "disconnected",
-      },
-      disconnected: {
-        always: [
-          {
-            cond: (_) => socket.connected,
-            target: "idle",
-          },
-        ],
-        after: {
-          500: { target: "disconnected", actions: "connect" },
         },
       },
       idle: {
@@ -150,7 +172,7 @@ const mainMachine = createMachine<MainContext>(
             entry: "sendMatchReq",
             on: {
               MATCH_CHECK: {
-                target: "acceptance",
+                target: "handshake",
                 actions: [
                   "sendMatchCheckAck",
                   assign({
@@ -173,7 +195,7 @@ const mainMachine = createMachine<MainContext>(
           waitForConfirmation: {
             on: {
               MATCH_CHECK_ACK: {
-                target: "acceptance",
+                target: "handshake",
                 cond: (context, event) => event.source === context.target,
                 actions: assign({
                   targetKey: (_, event) => event.key,
@@ -183,53 +205,12 @@ const mainMachine = createMachine<MainContext>(
             },
             after: [{ delay: "matchConfirmation", target: "waiting" }],
           },
-          acceptance: {
-            id: "acceptance",
-            type: "parallel",
-            onDone: "handshake",
-            on: {
-              TIMEOUT: "#match",
-            },
-            states: {
-              alice: {
-                initial: "wait",
-                states: {
-                  wait: {
-                    on: {
-                      ALICE_ACCEPTS: {
-                        target: "ready",
-                        actions: "sendAcceptance",
-                      },
-                      ALICE_REJECTS: {
-                        target: "#match",
-                        actions: "sendRejection",
-                      },
-                    },
-                  },
-                  ready: { type: "final" },
-                },
-              },
-              bob: {
-                initial: "wait",
-                states: {
-                  wait: {
-                    on: {
-                      BOB_ACCEPTS: "ready",
-                      BOB_REJECTS: "#match",
-                    },
-                  },
-                  ready: { type: "final" },
-                },
-              },
-            },
-          },
           handshake: {
             // either a MATCHREQ response to our HELLO or MATCHREQ_ACK response to our MATCHREQ response to someone's HELLO
             initial: "importBobKey",
             on: {
               HANDSHAKE_TIMEOUT: "",
             },
-            onDone: "matched",
             states: {
               importBobKey: {
                 invoke: {
@@ -304,7 +285,7 @@ const mainMachine = createMachine<MainContext>(
                           id: "checkTest",
                           src: checkTest,
                           onDone: {
-                            target: "#match.matched",
+                            target: "#match.acceptance",
                             actions: ["sendTestAck"],
                           },
                           onError: {
@@ -337,11 +318,51 @@ const mainMachine = createMachine<MainContext>(
                       },
                       waitForAck: {
                         on: {
-                          RECV_TEST_PASSED: "#match.matched",
+                          RECV_TEST_PASSED: "#match.acceptance",
                         },
                       },
                     },
                   },
+                },
+              },
+            },
+          },
+          acceptance: {
+            id: "acceptance",
+            type: "parallel",
+            onDone: "matched",
+            on: {
+              TIMEOUT: "#match",
+            },
+            states: {
+              alice: {
+                initial: "wait",
+                states: {
+                  wait: {
+                    on: {
+                      ALICE_ACCEPTS: {
+                        target: "ready",
+                        actions: "sendAcceptance",
+                      },
+                      ALICE_REJECTS: {
+                        target: "#match",
+                        actions: "sendRejection",
+                      },
+                    },
+                  },
+                  ready: { type: "final" },
+                },
+              },
+              bob: {
+                initial: "wait",
+                states: {
+                  wait: {
+                    on: {
+                      BOB_ACCEPTS: "ready",
+                      BOB_REJECTS: "#match",
+                    },
+                  },
+                  ready: { type: "final" },
                 },
               },
             },
@@ -395,11 +416,13 @@ const mainMachine = createMachine<MainContext>(
   },
   {
     delays: {
-      matchWait: () => getRandInRange(800, 1000),
-      matchConfirmation: () => getRandInRange(300, 500),
+      matchWait: () => getRandInRange(1500, 2000),
+      matchConfirmation: () => getRandInRange(800, 1000),
     },
     actions: {
+      alertUser: () => alert("error!"),
       connect: () => socket.connect(),
+      sendNameReq: () => socket.emit("NAME_REQUEST"),
       sendMatchReq: (context) =>
         socket.emit("MATCHREQ", {
           level: context.level,
@@ -450,10 +473,15 @@ export const mainService = interpret(mainMachine, {
   })*/
   .start();
 
-socket.on("INIT", (data: string) => mainService.send("CONNECTED", { data }));
+socket.on("INIT", () => mainService.send("CONNECTED"));
+
+socket.on("NAME_DECREE", (name: string) => {
+  console.log("onNAMEDECREE", name);
+  mainService.send("NAME_DECREE", { name });
+});
 
 socket.on("MATCH_DECREE", (source: string) => {
-  console.log("onDECREE", source);
+  console.log("onMATCHDECREE", source);
   mainService.send("MATCH_DECREE", { source });
 });
 

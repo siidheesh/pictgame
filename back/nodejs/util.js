@@ -6,8 +6,8 @@ const redisOpt = {
   enableAutoPipelining: true,
 };
 
-const clientChannel = "pictgame_clients";
-const serverChannel = "pictgame_servers";
+const clientChannel = "pictgame_clients1";
+const serverChannel = "pictgame_servers1";
 
 const makeid = (length) => {
   var result = "";

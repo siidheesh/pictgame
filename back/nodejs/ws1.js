@@ -5,6 +5,19 @@ const PORT = process.env.PORT || 5000;
 const { nanoid } = require("nanoid");
 const instanceId = process.env.ID || nanoid();
 
+const {
+  uniqueNamesGenerator,
+  adjectives,
+  colors,
+  animals,
+} = require("unique-names-generator");
+const usernameConfig = {
+  dictionaries: [adjectives, colors, animals],
+  separator: "",
+  style: "capital",
+};
+const CLIENT_NAMES_KEY = "pictgame_client_names";
+
 const app = require("express")();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
@@ -31,6 +44,8 @@ const msgType = Object.freeze({
   DATA: 2,
   MATCH_REQ: 3,
   MATCH_DECREE: 4,
+  NAME_REQUEST: 5,
+  NAME_DECREE: 6,
 });
 
 const playerLevelBinLength = 3;
@@ -46,7 +61,9 @@ const pubMsgIsValid = (msg) =>
       msg.length === 3 &&
       "level" in msg[2] &&
       "allowLower" in msg[2]) ||
-    (msg[0] === msgType.MATCH_DECREE && msg.length === 3));
+    (msg[0] === msgType.MATCH_DECREE && msg.length === 3) ||
+    (msg[0] === msgType.NAME_REQUEST && msg.length === 2) ||
+    (msg[0] === msgType.NAME_DECREE && msg.length === 3));
 
 const processClientMsg = (origMsg) => {
   let msg = null;
@@ -62,17 +79,47 @@ const processClientMsg = (origMsg) => {
   let found = false;
 
   switch (msg[0]) {
-    case msgType.HELLO: // msg: [type, source, payload]
+    case msgType.NAME_REQUEST: // msg: [type, source]
+      if (imTheLeader()) {
+        const randomName = (maxIter) => {
+          const name = uniqueNamesGenerator(usernameConfig);
+          //debug(`randomName iter ${maxIter}: ${name}`);
+          return pub.sismember(CLIENT_NAMES_KEY, name).then((res) => {
+            if (res) {
+              return randomName(maxIter - 1);
+            } else if (maxIter <= 0) {
+              return false;
+            } else return name;
+          });
+        };
+
+        randomName(5).then((name) => {
+          if (name) {
+            pub.publish(
+              clientChannel,
+              JSON.stringify([msgType.NAME_DECREE, msg[1], name])
+            );
+            pub.sadd(CLIENT_NAMES_KEY, name);
+          }
+        });
+      }
+      break;
+    case msgType.NAME_DECREE: // msg: [type, target, name]
       io.sockets.sockets.forEach((socket) => {
-        if (socket && socket.uuid !== msg[1]) {
-          socket.emit("HELLO", [msg[1], msg[2]]);
+        if (found) return;
+        else if (socket && socket.uuid === msg[1]) {
+          socket.username = msg[2];
+          debug(`${msg[1]} is henceforth ${socket.username}`);
+          socket.emit("NAME_DECREE", msg[2]);
+          delete socket.uuid;
+          found = true;
         }
       });
       break;
     case msgType.DATA: // msg: [type, source, target, payload]
       io.sockets.sockets.forEach((socket) => {
         if (found) return;
-        else if (socket && socket.uuid === msg[2]) {
+        else if (socket && socket.username === msg[2]) {
           //debug(`we have ${msg[2]}, sending ${msg[0]}`);
           socket.emit("DATA", [msg[1], msg[3]]);
           found = true;
@@ -94,7 +141,7 @@ const processClientMsg = (origMsg) => {
             (waitingPlayers[l].allowLower || origLevel >= l)
           ) {
             // match
-            debug("matching", waitingPlayers[l].id, "with", msg[1]);
+            debug(`asking ${msg[1]} to match with ${waitingPlayers[l].id}`);
             pub.publish(
               clientChannel,
               JSON.stringify([
@@ -123,7 +170,7 @@ const processClientMsg = (origMsg) => {
     case msgType.MATCH_DECREE: // msg: [type, source, target]
       io.sockets.sockets.forEach((socket) => {
         if (found) return;
-        else if (socket && socket.uuid === msg[2]) {
+        else if (socket && socket.username === msg[2]) {
           //debug(`we have ${msg[2]}, sending ${msg[0]}`);
           socket.emit("MATCH_DECREE", msg[1]);
           found = true;
@@ -150,31 +197,43 @@ sub.on("message", (chn, msg) => {
 io.on("connection", (socket) => {
   socket.uuid = nanoid();
 
-  debug(`${socket.id} connected, uuid: ${socket.uuid}`);
+  debug(`${socket.uuid} connected`);
 
-  socket.on("HELLO", (data) => {
+  socket.on("NAME_REQUEST", (data) => {
+    if (socket.username) {
+      socket.emit("NAME_DECREE", socket.username);
+    } else
+      pub.publish(
+        clientChannel,
+        JSON.stringify([msgType.NAME_REQUEST, socket.uuid])
+      );
+  });
+
+  socket.on("MATCHREQ", (options) => {
     pub.publish(
       clientChannel,
-      JSON.stringify([msgType.HELLO, socket.uuid, data])
+      JSON.stringify([msgType.MATCH_REQ, socket.username, options])
     );
   });
 
   socket.on("DATA", (target, data) => {
     pub.publish(
       clientChannel,
-      JSON.stringify([msgType.DATA, socket.uuid, target, data])
+      JSON.stringify([msgType.DATA, socket.username, target, data])
     );
   });
 
-  socket.on("MATCHREQ", (options) => {
-    pub.publish(
-      clientChannel,
-      JSON.stringify([msgType.MATCH_REQ, socket.uuid, options])
-    );
+  socket.on("disconnect", () => {
+    debug(`${socket.username} disconnected`);
+    pub.srem(CLIENT_NAMES_KEY, socket.username);
+    //socket.username = undefined;
+    //socket.id = undefined;
   });
 
-  socket.emit("INIT", socket.uuid);
+  socket.emit("INIT");
 });
+
+//pub.sscanStream(CLIENT_NAMES_KEY, { match: `${instanceId}:` });
 
 app.set("trust proxy", 1);
 
@@ -187,7 +246,13 @@ http.listen(PORT, () => {
 });
 
 process.on("SIGINT", async () => {
-  await pub.quit();
-  await sub.quit();
+  /*debug("tearing down");
+  io.sockets.sockets.forEach((socket) => {
+    if (socket && socket.username) {
+      debug("removing", socket.username);
+      pub.srem(CLIENT_NAMES_KEY, socket.username);
+    }
+  });
+  debug("exiting");*/
   process.exit();
 });
