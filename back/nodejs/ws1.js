@@ -3,7 +3,7 @@ const debug = isDEBUG ? console.log : () => {};
 const PORT = process.env.PORT || 5000;
 
 const { nanoid } = require("nanoid");
-const instanceId = process.env.ID || nanoid();
+const instanceId = process.env.PORT || nanoid();
 
 const {
   uniqueNamesGenerator,
@@ -16,6 +16,8 @@ const usernameConfig = {
   separator: "",
   style: "capital",
 };
+
+const SERVER_IDS_KEY = "pictgame_server_ids";
 const CLIENT_NAMES_KEY = "pictgame_client_names";
 
 const app = require("express")();
@@ -29,6 +31,7 @@ const io = require("socket.io")(http, {
 
 const Redis = require("ioredis");
 const { redisOpt, clientChannel, serverChannel } = require("./util");
+const { publicEncrypt, publicDecrypt } = require("crypto");
 
 const pub = new Redis(redisOpt);
 const sub = new Redis(redisOpt);
@@ -62,7 +65,7 @@ const pubMsgIsValid = (msg) =>
       "level" in msg[2] &&
       "allowLower" in msg[2]) ||
     (msg[0] === msgType.MATCH_DECREE && msg.length === 3) ||
-    (msg[0] === msgType.NAME_REQUEST && msg.length === 2) ||
+    (msg[0] === msgType.NAME_REQUEST && msg.length === 3) ||
     (msg[0] === msgType.NAME_DECREE && msg.length === 3));
 
 const processClientMsg = (origMsg) => {
@@ -79,29 +82,43 @@ const processClientMsg = (origMsg) => {
   let found = false;
 
   switch (msg[0]) {
-    case msgType.NAME_REQUEST: // msg: [type, source]
+    case msgType.NAME_REQUEST: // msg: [type, source, instanceId]
       if (imTheLeader()) {
-        const randomName = (maxIter) => {
+        const randomName = (maxTries) => {
           const name = uniqueNamesGenerator(usernameConfig);
-          //debug(`randomName iter ${maxIter}: ${name}`);
-          return pub.sismember(CLIENT_NAMES_KEY, name).then((res) => {
-            if (res) {
-              return randomName(maxIter - 1);
-            } else if (maxIter <= 0) {
-              return false;
-            } else return name;
-          });
+          //pub.smembers(SERVER_IDS_KEY).map(serverIdKey => pub.sismember(serverIdKey, name)).then();
+          return (
+            pub
+              // get list of servers
+              .smembers(SERVER_IDS_KEY)
+              // for each server, check its clients for a matching name
+              .then((serverIds) =>
+                Promise.all(
+                  serverIds.map((serverId) =>
+                    pub.sismember(`${CLIENT_NAMES_KEY}_${serverId}`, name)
+                  )
+                )
+              )
+              // check if all false
+              .then((serverResults) => {
+                if (serverResults.every((res) => !res)) {
+                  return name; // return name if successful
+                } else if (maxTries <= 0) {
+                  return Promise.reject("cannot generate unique name");
+                } else return randomName(maxTries - 1);
+              })
+          );
         };
 
-        randomName(5).then((name) => {
-          if (name) {
+        randomName(2)
+          .then((name) => {
             pub.publish(
               clientChannel,
               JSON.stringify([msgType.NAME_DECREE, msg[1], name])
             );
-            pub.sadd(CLIENT_NAMES_KEY, name);
-          }
-        });
+            pub.sadd(`${CLIENT_NAMES_KEY}_${msg[2]}`, name);
+          })
+          .catch(() => {}); // ignore errors
       }
       break;
     case msgType.NAME_DECREE: // msg: [type, target, name]
@@ -205,7 +222,7 @@ io.on("connection", (socket) => {
     } else
       pub.publish(
         clientChannel,
-        JSON.stringify([msgType.NAME_REQUEST, socket.uuid])
+        JSON.stringify([msgType.NAME_REQUEST, socket.uuid, instanceId])
       );
   });
 
@@ -224,16 +241,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    pub.srem(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
     debug(`${socket.username} disconnected`);
-    pub.srem(CLIENT_NAMES_KEY, socket.username);
-    //socket.username = undefined;
-    //socket.id = undefined;
   });
 
   socket.emit("INIT");
 });
 
-//pub.sscanStream(CLIENT_NAMES_KEY, { match: `${instanceId}:` });
+pub.sadd(SERVER_IDS_KEY, instanceId); // add self to server list
+pub.del(`${CLIENT_NAMES_KEY}_${instanceId}`); // clear client list on start
 
 app.set("trust proxy", 1);
 
