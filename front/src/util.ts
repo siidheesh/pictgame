@@ -35,7 +35,7 @@ export const getRandInRange = (min: number, max: number) => {
 export interface MainContext {
   myPrivateKey: any;
   myPublicKey: any;
-  id: string;
+  name: string;
   target: string;
   sharedKey: any;
   helloCounter: number;

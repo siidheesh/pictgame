@@ -5,21 +5,6 @@ const PORT = process.env.PORT || 5000;
 const { nanoid } = require("nanoid");
 const instanceId = process.env.PORT || nanoid();
 
-const {
-  uniqueNamesGenerator,
-  adjectives,
-  colors,
-  animals,
-} = require("unique-names-generator");
-const usernameConfig = {
-  dictionaries: [adjectives, colors, animals],
-  separator: "",
-  style: "capital",
-};
-
-const SERVER_IDS_KEY = "pictgame_server_ids";
-const CLIENT_NAMES_KEY = "pictgame_client_names";
-
 const app = require("express")();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
@@ -30,8 +15,14 @@ const io = require("socket.io")(http, {
 });
 
 const Redis = require("ioredis");
-const { redisOpt, clientChannel, serverChannel } = require("./util");
-const { publicEncrypt, publicDecrypt } = require("crypto");
+const {
+  redisOpt,
+  clientChannel,
+  serverChannel,
+  SERVER_IDS_KEY,
+  CLIENT_NAMES_KEY,
+  generateUsername,
+} = require("./util");
 
 const pub = new Redis(redisOpt);
 const sub = new Redis(redisOpt);
@@ -85,7 +76,7 @@ const processClientMsg = (origMsg) => {
     case msgType.NAME_REQUEST: // msg: [type, source, instanceId]
       if (imTheLeader()) {
         const randomName = (maxTries) => {
-          const name = uniqueNamesGenerator(usernameConfig);
+          const name = generateUsername();
           //pub.smembers(SERVER_IDS_KEY).map(serverIdKey => pub.sismember(serverIdKey, name)).then();
           return (
             pub
@@ -254,7 +245,8 @@ pub.del(`${CLIENT_NAMES_KEY}_${instanceId}`); // clear client list on start
 app.set("trust proxy", 1);
 
 app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/index.html");
+  //res.sendFile(__dirname + "/index.html");
+  res.send(204);
 });
 
 http.listen(PORT, () => {

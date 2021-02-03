@@ -6,8 +6,26 @@ const redisOpt = {
   enableAutoPipelining: true,
 };
 
-const clientChannel = "pictgame_clients1";
-const serverChannel = "pictgame_servers1";
+const {
+  uniqueNamesGenerator,
+  adjectives,
+  colors,
+  animals,
+} = require("unique-names-generator");
+
+const usernameConfig = {
+  dictionaries: [adjectives, colors, animals],
+  separator: "",
+  style: "capital",
+};
+
+const generateUsername = () => uniqueNamesGenerator(usernameConfig);
+
+const SERVER_IDS_KEY = "pictgame_server_ids";
+const CLIENT_NAMES_KEY = "pictgame_client_names";
+
+const clientChannel = "pictgame_clients";
+const serverChannel = "pictgame_servers";
 
 const makeid = (length) => {
   var result = "";
@@ -67,7 +85,10 @@ module.exports = {
   uuidv4,
   hazard,
   getRandInRange,
+  generateUsername,
   redisOpt,
   clientChannel,
   serverChannel,
+  SERVER_IDS_KEY,
+  CLIENT_NAMES_KEY,
 };
