@@ -1,6 +1,5 @@
 import { io } from "socket.io-client";
-import { isContext } from "vm";
-import { assign, actions, send, interpret, createMachine } from "xstate";
+import { assign, send, interpret, createMachine } from "xstate";
 import { generateKeyPair, exportRawKey } from "./initMachine";
 import {
   importBobKey,
@@ -8,17 +7,18 @@ import {
   encryptTest,
   checkTest,
   replyTest,
-} from "./matchMachine";
+  encrypt,
+  decrypt,
+} from "./crypto";
 import {
   MainContext,
   _base64ToArrayBuffer,
   getRandInRange,
-  _arrayBufferToBase64,
+  serialiseStrokes,
+  deserialiseStrokes,
 } from "./util";
 
-const { cancel } = actions;
-
-const socket = io("wss://api.siidhee.sh");
+const socket = io("ws://localhost:3002");
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -68,6 +68,7 @@ const mainMachine = createMachine<MainContext>(
       forky: false,
       level: getRandInRange(0, 2),
       allowLower: Math.random() >= 0.5,
+      oppPic: undefined,
     },
     on: {
       DISCONNECT: [
@@ -133,7 +134,7 @@ const mainMachine = createMachine<MainContext>(
                   },
                 ],
                 after: {
-                  500: { target: "disconnected" },
+                  500: { target: "disconnected", actions: "connect" },
                 },
               },
               waitForName: {
@@ -371,7 +372,9 @@ const mainMachine = createMachine<MainContext>(
         },
       },
       game: {
-        type: "parallel",
+        id: "game",
+        initial: "round",
+        entry: assign({ oppPic: (context, event) => undefined }),
         on: {
           QUIT: {
             target: "idle",
@@ -379,36 +382,42 @@ const mainMachine = createMachine<MainContext>(
           },
         },
         states: {
-          heartbeat: {
-            initial: "fork",
-            on: {
-              HEARTBEAT: {
-                //actions: cancel("hbTimer"),
-              },
-            },
+          round: {
+            type: "parallel",
+            onDone: "guessing",
             states: {
-              fork: {
+              alice: {
+                initial: "drawing",
                 on: {
-                  "": [
-                    { target: "lub", cond: (context, _) => context.forky },
-                    { target: "dub", cond: (context, _) => !context.forky },
-                  ],
+                  SUBMIT_PIC: {
+                    target: ".ready",
+                    actions: "sendPic",
+                  },
+                },
+                states: {
+                  drawing: {},
+                  ready: { type: "final" },
                 },
               },
-              lub: {
-                //entry: "sendHeartBeat",
-                after: {
-                  //1000: "dub",
+              bob: {
+                initial: "drawing",
+                on: {
+                  RECEIVED_PIC: {
+                    target: ".ready",
+                    actions: assign({
+                      oppPic: (_, event) => event.pic,
+                    }),
+                  },
                 },
-              },
-              dub: {
-                after: {
-                  //1000: "lub",
+                states: {
+                  drawing: {},
+                  ready: { type: "final" },
                 },
               },
             },
           },
-          main: {},
+          guessing: {},
+          result: {},
         },
       },
       error: {},
@@ -445,14 +454,14 @@ const mainMachine = createMachine<MainContext>(
       sendTest: (context, event) =>
         socket.emit("DATA", context.target, {
           type: "MATCHTEST",
-          iv: _arrayBufferToBase64(event.data[0]),
-          enc: _arrayBufferToBase64(event.data[1]),
+          iv: event.data.iv,
+          enc: event.data.enc,
         }),
       sendTestReply: (context, event) =>
         socket.emit("DATA", context.target, {
           type: "MATCHTEST_REPLY",
-          iv: _arrayBufferToBase64(event.data[0]),
-          enc: _arrayBufferToBase64(event.data[1]),
+          iv: event.data.iv,
+          enc: event.data.enc,
         }),
       sendTestAck: (context, _) =>
         socket.emit("DATA", context.target, { type: "MATCHTEST_ACK" }),
@@ -460,6 +469,17 @@ const mainMachine = createMachine<MainContext>(
         socket.emit("DATA", context.target, { type: "HEARTBEAT" }),
       sendQuit: (context, _) =>
         socket.emit("DATA", context.target, { type: "USER_QUIT" }),
+      sendPic: (context, event) =>
+        encrypt(
+          context.sharedKey,
+          new TextEncoder().encode(JSON.stringify(serialiseStrokes(event.data)))
+        ).then(({ iv, enc }) => {
+          socket.emit("DATA", context.target, {
+            type: event.type,
+            iv,
+            enc,
+          });
+        }),
     },
   }
 );
@@ -544,6 +564,20 @@ socket.on("DATA", (data: any[]) => {
         case "GAME":
           if (!payload.event) break;
           console.log(`received a ${payload.type} from ${source}`);
+          break;
+        case "SUBMIT_PIC":
+          mainService.state.context.sharedKey &&
+            decrypt(
+              mainService.state.context.sharedKey,
+              payload.iv,
+              payload.enc
+            ).then((plaindata) => {
+              mainService.send("RECEIVED_PIC", {
+                pic: deserialiseStrokes(
+                  JSON.parse(new TextDecoder().decode(plaindata))
+                ),
+              });
+            });
           break;
         default:
           break;

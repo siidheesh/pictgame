@@ -1,20 +1,19 @@
 import { MutableRefObject, useState, useRef, useEffect } from "react";
 
-
 export interface Stroke {
-    colour: string;
-    brushRadius: number;
-    points: Array<[number, number]>;
-  };
-  
+  colour: string;
+  brushRadius: number;
+  points: Array<[number, number]>;
+}
+
 export interface Props {
-  strokeHistory: MutableRefObject<Stroke[]>,
-  onStrokeHistoryChange: (_: Stroke[]) => void,//React.Dispatch<React.SetStateAction<Stroke[]>>;
-  forcedHistory: Stroke[],
-  brushRadius: number,
-  brushColour: string,
-  eraseMode: boolean
-};
+  strokeHistory: MutableRefObject<Stroke[]>;
+  onStrokeHistoryChange: (_: Stroke[]) => void; //React.Dispatch<React.SetStateAction<Stroke[]>>;
+  forcedHistory: Stroke[];
+  brushRadius: number;
+  brushColour: string;
+  eraseMode: boolean;
+}
 
 /**
  * Component for a canvas to draw and show drawings on
@@ -22,21 +21,20 @@ export interface Props {
  * @component
  */
 function Canvas(props: Props) {
- 
   const [currentStroke, setCurrentStroke] = useState({} as Stroke);
 
   const strokeHistory = props.strokeHistory;
   const setStrokeHistory = props.onStrokeHistoryChange;
   const forcedHistory = props.forcedHistory;
-  
+
   const brushColour = props.brushColour;
   const brushRadius = props.brushRadius;
   const eraseMode = props.eraseMode;
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
-        lastX = useRef(0),
-        lastY = useRef(0),
-        drawMode = useRef(false);
+    lastX = useRef(0),
+    lastY = useRef(0),
+    drawMode = useRef(false);
 
   /**
    * Converts client coords (mouse/touch) to canvas-rel coords
@@ -67,7 +65,7 @@ function Canvas(props: Props) {
 
     setCurrentStroke({
       // start tracking stroke
-      colour: eraseMode ? '#ffffff' : brushColour,
+      colour: eraseMode ? "#ffffff" : brushColour,
       brushRadius: brushRadius,
       points: [[canvasX, canvasY]],
     });

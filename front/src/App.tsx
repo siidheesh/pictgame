@@ -77,6 +77,15 @@ function App(props: Props) {
           variant="contained"
           color="primary"
           onClick={() => {
+            props.onSubmit(strokeHistory.current);
+          }}
+        >
+          Submit
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
             console.log(JSON.stringify(strokeHistory.current));
           }}
         >

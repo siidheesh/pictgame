@@ -77,7 +77,6 @@ const processClientMsg = (origMsg) => {
       if (imTheLeader()) {
         const randomName = (maxTries) => {
           const name = generateUsername();
-          //pub.smembers(SERVER_IDS_KEY).map(serverIdKey => pub.sismember(serverIdKey, name)).then();
           return (
             pub
               // get list of servers
@@ -109,7 +108,7 @@ const processClientMsg = (origMsg) => {
             );
             pub.sadd(`${CLIENT_NAMES_KEY}_${msg[2]}`, name);
           })
-          .catch(() => {}); // ignore errors
+          .catch(debug); // ignore errors
       }
       break;
     case msgType.NAME_DECREE: // msg: [type, target, name]

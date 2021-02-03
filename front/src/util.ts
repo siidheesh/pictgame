@@ -1,3 +1,5 @@
+import { Stroke } from "./Canvas";
+
 export function _arrayBufferToBase64(buffer: ArrayBuffer) {
   var binary = "";
   var bytes = new Uint8Array(buffer);
@@ -44,4 +46,30 @@ export interface MainContext {
   forky: boolean; // true if we responded to a MATCHREQ, false if we responded to a HELLO
   level: number;
   allowLower: boolean;
+  oppPic: any;
 }
+
+const serialiseStroke = (stroke: Stroke) => {
+  let points = new Uint8Array(
+    stroke.points.flatMap(([x, y]) => [x >> 8, x & 255, y >> 8, y & 255])
+  );
+  return [stroke.colour, stroke.brushRadius, _arrayBufferToBase64(points)];
+};
+
+const deserialiseStroke = (row: any[]): Stroke => {
+  let points: [number, number][] = [];
+  const pointBytes = new Uint8Array(_base64ToArrayBuffer(row[2]));
+  for (let i = 0; i < pointBytes.length; i += 4) {
+    points.push([
+      (pointBytes[i] << 8) + pointBytes[i + 1],
+      (pointBytes[i + 2] << 8) + pointBytes[i + 3],
+    ]);
+  }
+  return { colour: row[0], brushRadius: row[1], points };
+};
+
+export const serialiseStrokes = (strokes: Stroke[]): any[] =>
+  strokes.map(serialiseStroke);
+
+export const deserialiseStrokes = (rows: any[]): Stroke[] =>
+  rows.map(deserialiseStroke);
