@@ -13,6 +13,7 @@ export interface Props {
   brushRadius: number;
   brushColour: string;
   eraseMode: boolean;
+  locked?: boolean;
 }
 
 /**
@@ -21,7 +22,7 @@ export interface Props {
  * @component
  */
 function Canvas(props: Props) {
-  const [currentStroke, setCurrentStroke] = useState({} as Stroke);
+  const [currentStroke, setCurrentStroke] = useState({} as Stroke); // change to useRef
 
   const strokeHistory = props.strokeHistory;
   const setStrokeHistory = props.onStrokeHistoryChange;
@@ -30,6 +31,7 @@ function Canvas(props: Props) {
   const brushColour = props.brushColour;
   const brushRadius = props.brushRadius;
   const eraseMode = props.eraseMode;
+  const isLocked = "locked" in props;
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
     lastX = useRef(0),
@@ -55,7 +57,7 @@ function Canvas(props: Props) {
     ctx: CanvasRenderingContext2D | null
   ) {
     //console.log("handlePaintStart");
-    if (drawMode.current || ctx === null) return;
+    if (isLocked || drawMode.current || ctx === null) return;
 
     drawMode.current = true;
 
@@ -77,7 +79,7 @@ function Canvas(props: Props) {
     ctx: CanvasRenderingContext2D | null
   ) {
     //console.log("handlePaint");
-    if (!drawMode.current || ctx === null) return;
+    if (isLocked || !drawMode.current || ctx === null) return;
 
     const [canvasX, canvasY] = convertCoords(x, y);
 

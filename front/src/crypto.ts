@@ -2,9 +2,28 @@ import {
   MainContext,
   _arrayBufferToBase64,
   _base64ToArrayBuffer,
-  ecdhDevParams,
-  aesParams,
 } from "./util";
+
+export const ecdhDevParams: EcdhKeyDeriveParams | EcKeyImportParams = {
+  name: "ECDH",
+  namedCurve: "P-256",
+};
+
+export const aesParams: AesGcmParams | AesDerivedKeyParams = {
+  name: "AES-GCM",
+  length: 256,
+};
+
+export const generateKeyPair = () =>
+  window.crypto.subtle.generateKey(ecdhDevParams, false, [
+    "deriveKey",
+    "deriveBits",
+  ]);
+
+export const exportRawKey = (context: any, event: any) =>
+  window.crypto.subtle
+    .exportKey("raw", event.data.publicKey)
+    .then(_arrayBufferToBase64);
 
 export const importBobKey = (context: MainContext, event: any) =>
   window.crypto.subtle.importKey(
@@ -54,14 +73,11 @@ const handleTest = (context: MainContext, event: any) =>
   );
 
 export const checkTest = (context: MainContext, event: any) =>
-  handleTest(context, event).then((resData) => {
-    if (
-      _arrayBufferToBase64(resData) !== _arrayBufferToBase64(context.testData)
-    ) {
-      console.log("checkTest FAILED!", context.testData, resData);
-      return Promise.reject(new Error());
-    }
-  });
+  handleTest(context, event).then(
+    (resData) =>
+      _arrayBufferToBase64(resData) !==
+        _arrayBufferToBase64(context.testData) && Promise.reject()
+  );
 
 export const replyTest = (context: MainContext, event: any) =>
   handleTest(context, event).then((resData) =>

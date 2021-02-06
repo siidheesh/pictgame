@@ -1,57 +1,89 @@
-import { Button } from "@material-ui/core";
+import React, { useState } from "react";
 import { useService } from "@xstate/react";
-//import React, { useState, useRef, useEffect } from "react";
 import { mainService } from "./machine";
-import { Game } from "./Game";
+import Game from "./Game";
+import Match from "./Match";
+import { CircularProgress } from "@material-ui/core";
+import ToggleButton from "@material-ui/lab/ToggleButton";
+import Brightness7RoundedIcon from "@material-ui/icons/Brightness7Rounded";
+import Brightness4RoundedIcon from "@material-ui/icons/Brightness4Rounded";
 
-const Match = (props: any) => {
-  const [state, send] = useService(mainService);
-  //const { state, send } = props;
-  return (
-    <main style={{ margin: "10px" }}>
-      <p id="currstate">{state.toStrings().join(" ")}</p>
-      <div>
-        {state.matches("init") && <h1>LOADING...</h1>}
-        <p style={{ overflow: "auto", wordWrap: "break-word" }}>
-          {JSON.stringify(state.context)}
-        </p>
-        <p>
-          my lvl is: {state.context.allowLower && "<="}
-          {state.context.level}
-        </p>
-        <p>my id is: {state.context.name}</p>
-        <p>my opp is: {state.context.target}</p>
-        {state.matches("match.acceptance.bob.wait") && (
-          <p>waiting for bob's reply</p>
-        )}
-        {state.matches("idle") && (
-          <Button onClick={() => send("MATCH")}>Find match</Button>
-        )}
-        {state.matches("match.acceptance.alice.wait") && (
-          <div>
-            <Button onClick={() => send("ALICE_ACCEPTS")}>Accept</Button>
-            <Button onClick={() => send("ALICE_REJECTS")}>Reject</Button>
-          </div>
-        )}
-
-        {!state.matches("idle") && (
-          <Button onClick={() => send("QUIT")}>QUIT</Button>
-        )}
-      </div>
-    </main>
-  );
-};
+const Loading = (props: any) => (
+  <div
+    style={{
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+    }}
+  >
+    <CircularProgress />
+    {props.msg}
+  </div>
+);
 
 const Main = () => {
-  const [state] = useService(mainService);
+  const [state, send] = useService(mainService);
+  const [darkMode, setDarkMode] = useState(false);
+  const m = state.matches;
 
-  const inGame = state.matches("game");
+  //const [open, setOpen] = useState(true);
+  /*
+  useEffect(() => {
+    console.log("closure", state);
+    const handle = window.setTimeout(() => setOpen(false), 2000);
+    return () => {
+      console.log("cleartimer", state);
+      window.clearTimeout(handle);
+    };
+  });*/
 
-  if (inGame) {
-    return <Game /*{...{ state, send }}*/ />;
+  console.log("main RENDER");
+
+  if (m("init")) {
+    let msg = "Loading...";
+    if (m("init.prepareSocket.disconnected")) {
+      msg = "Establishing connection";
+    } else if (m("init.prepareSocket.waitForName")) {
+      msg = "Starting session";
+    }
+    return <Loading msg={msg} />;
   }
 
-  return <Match /*{...{ state, send }}*/ />;
+  return (
+    <React.Fragment>
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          paddingRight: "10px",
+          paddingTop: "10px",
+        }}
+      >
+        {/*<Switch
+          checkedIcon={<Brightness4RoundedIcon />}
+          icon={<Brightness7RoundedIcon color="primary" />}
+          size="medium"
+        />*/}
+        <ToggleButton
+          selected={darkMode}
+          onChange={() => setDarkMode(!darkMode)}
+        >
+          {darkMode ? <Brightness4RoundedIcon /> : <Brightness7RoundedIcon />}
+        </ToggleButton>
+      </div>
+      {m("game") ? (
+        <Game {...{ state, send, darkMode }} />
+      ) : (
+        <Match {...{ state, send, darkMode }} />
+      )}
+    </React.Fragment>
+  );
 };
 
 export default Main;

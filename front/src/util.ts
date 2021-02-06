@@ -20,16 +20,6 @@ export function _base64ToArrayBuffer(base64: string) {
   return bytes.buffer;
 }
 
-export const ecdhDevParams: EcdhKeyDeriveParams | EcKeyImportParams = {
-  name: "ECDH",
-  namedCurve: "P-256",
-};
-
-export const aesParams: AesGcmParams | AesDerivedKeyParams = {
-  name: "AES-GCM",
-  length: 256,
-};
-
 export const getRandInRange = (min: number, max: number) => {
   return Math.floor(Math.random() * (max + 1 - min) + min);
 };
@@ -46,7 +36,9 @@ export interface MainContext {
   forky: boolean; // true if we responded to a MATCHREQ, false if we responded to a HELLO
   level: number;
   allowLower: boolean;
-  oppPic: any;
+  oppData: any;
+  aliceGuess: string;
+  bobGuess: string;
 }
 
 const serialiseStroke = (stroke: Stroke) => {

@@ -1,7 +1,8 @@
 import { io } from "socket.io-client";
-import { assign, send, interpret, createMachine } from "xstate";
-import { generateKeyPair, exportRawKey } from "./initMachine";
+import { assign, send, interpret, createMachine, Machine } from "xstate";
 import {
+  generateKeyPair,
+  exportRawKey,
   importBobKey,
   generateSharedKey,
   encryptTest,
@@ -18,7 +19,7 @@ import {
   deserialiseStrokes,
 } from "./util";
 
-const socket = io("ws://localhost:3002");
+const socket = io("wss://api.siidhee.sh");
 
 const errors = [
   "ERR_GEN_KEYS",
@@ -51,6 +52,16 @@ const generateKeyPair = exportRawKey = importBobKey = generateSharedKey = encryp
     });
 */
 
+const promiseMachine = Machine({
+  id: "promise",
+  initial: "pending",
+  states: {
+    pending: {},
+    resolved: {},
+    rejected: {},
+  },
+});
+
 const mainMachine = createMachine<MainContext>(
   {
     id: "main",
@@ -67,8 +78,10 @@ const mainMachine = createMachine<MainContext>(
       testData: undefined,
       forky: false,
       level: getRandInRange(0, 2),
-      allowLower: Math.random() >= 0.5,
-      oppPic: undefined,
+      allowLower: true, //Math.random() >= 0.5,
+      oppData: undefined,
+      aliceGuess: "",
+      bobGuess: "",
     },
     on: {
       DISCONNECT: [
@@ -78,6 +91,11 @@ const mainMachine = createMachine<MainContext>(
         },
       ],
       ...errors,
+    },
+    invoke: {
+      // accessible via state.children.pm
+      id: "pm",
+      src: promiseMachine,
     },
     states: {
       init: {
@@ -374,7 +392,8 @@ const mainMachine = createMachine<MainContext>(
       game: {
         id: "game",
         initial: "round",
-        entry: assign({ oppPic: (context, event) => undefined }),
+        entry: "clearOppData",
+        exit: "clearOppData",
         on: {
           QUIT: {
             target: "idle",
@@ -405,7 +424,10 @@ const mainMachine = createMachine<MainContext>(
                   RECEIVED_PIC: {
                     target: ".ready",
                     actions: assign({
-                      oppPic: (_, event) => event.pic,
+                      oppData: (_, event) => ({
+                        pic: event.pic,
+                        label: event.label,
+                      }),
                     }),
                   },
                 },
@@ -416,10 +438,87 @@ const mainMachine = createMachine<MainContext>(
               },
             },
           },
-          guessing: {},
+          guessing: {
+            type: "parallel",
+            onDone: "result",
+            states: {
+              alice: {
+                initial: "waiting",
+                states: {
+                  waiting: {
+                    on: {
+                      ALICE_GUESSED: {
+                        target: "ready",
+                        actions: [
+                          assign({ aliceGuess: (_, event) => event.guess }),
+                          "sendGuess",
+                        ],
+                      },
+                    },
+                  },
+                  ready: { type: "final" },
+                },
+              },
+              bob: {
+                initial: "waiting",
+                states: {
+                  waiting: {
+                    on: {
+                      BOB_GUESSED: {
+                        target: "ready",
+                        actions: assign({
+                          bobGuess: (_, event) => event.guess,
+                        }),
+                      },
+                    },
+                  },
+                  ready: { type: "final" },
+                },
+              },
+            },
+          },
           result: {},
         },
       },
+      /*game: {
+        type: "parallel",
+        states: {
+          alice: {
+            states: {
+              drawing: {
+                on: {
+                  SUBMIT_PIC: {
+                    target: "waitForBob",
+                    actions: "sendPic",
+                  },
+                },
+              },
+              waitForBob: {},
+              guessing: {},
+              fin: { type: "final" },
+            },
+          },
+          bob: {
+            states: {
+              drawing: {
+                on: {
+                  RECEIVED_PIC: {
+                    target: "fin",
+                    actions: assign({
+                      oppData: (_, event) => ({
+                        pic: event.pic,
+                        label: event.label,
+                      }),
+                    }),
+                  },
+                },
+              },
+              guessing: {}, // in future, maybe request correct answer from bob at this point, instead of sending label tgt with pic
+              fin: { type: "final" },
+            },
+          },
+        },
+      },*/
       error: {},
     },
   },
@@ -469,16 +568,27 @@ const mainMachine = createMachine<MainContext>(
         socket.emit("DATA", context.target, { type: "HEARTBEAT" }),
       sendQuit: (context, _) =>
         socket.emit("DATA", context.target, { type: "USER_QUIT" }),
+      clearOppData: assign({ oppData: (_) => undefined }),
       sendPic: (context, event) =>
         encrypt(
           context.sharedKey,
-          new TextEncoder().encode(JSON.stringify(serialiseStrokes(event.data)))
+          new TextEncoder().encode(
+            JSON.stringify({
+              pic: serialiseStrokes(event.data),
+              label: `${context.name}'s picture`,
+            })
+          )
         ).then(({ iv, enc }) => {
           socket.emit("DATA", context.target, {
             type: event.type,
             iv,
             enc,
           });
+        }),
+      sendGuess: (context, event) =>
+        socket.emit("DATA", context.target, {
+          type: "BOB_GUESSED",
+          guess: event.guess,
         }),
     },
   }
@@ -487,8 +597,8 @@ const mainMachine = createMachine<MainContext>(
 export const mainService = interpret(mainMachine, {
   devTools: true,
 })
-  //.onEvent((event) => console.log("event", event))
-  /*.onTransition((state) => {
+  /*.onEvent((event) => console.log("event", event))
+  .onTransition((state) => {
     console.log("stateΔ", state.value, state);
   })*/
   .start();
@@ -566,18 +676,23 @@ socket.on("DATA", (data: any[]) => {
           console.log(`received a ${payload.type} from ${source}`);
           break;
         case "SUBMIT_PIC":
+          if (!payload.iv || !payload.enc) break;
           mainService.state.context.sharedKey &&
             decrypt(
               mainService.state.context.sharedKey,
               payload.iv,
               payload.enc
             ).then((plaindata) => {
+              const plainobj = JSON.parse(new TextDecoder().decode(plaindata));
               mainService.send("RECEIVED_PIC", {
-                pic: deserialiseStrokes(
-                  JSON.parse(new TextDecoder().decode(plaindata))
-                ),
+                pic: deserialiseStrokes(plainobj.pic),
+                label: plainobj.label,
               });
             });
+          break;
+        case "BOB_GUESSED":
+          if (!payload.guess) break;
+          mainService.send("BOB_GUESSED", { guess: payload.guess });
           break;
         default:
           break;
