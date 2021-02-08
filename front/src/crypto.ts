@@ -15,10 +15,12 @@ export const aesParams: AesGcmParams | AesDerivedKeyParams = {
 };
 
 export const generateKeyPair = () =>
-  window.crypto.subtle.generateKey(ecdhDevParams, false, [
-    "deriveKey",
-    "deriveBits",
-  ]);
+  window.crypto.subtle
+    ? window.crypto.subtle.generateKey(ecdhDevParams, false, [
+        "deriveKey",
+        "deriveBits",
+      ])
+    : Promise.reject(new Error("SubtleCrypto not available"));
 
 export const exportRawKey = (context: any, event: any) =>
   window.crypto.subtle
@@ -44,6 +46,7 @@ export const generateSharedKey = (context: MainContext, event: any) =>
   );
 
 export const encrypt = (sharedKey: any, data: any) => {
+  if (!sharedKey) return Promise.reject("Invalid shared key");
   const iv = window.crypto.getRandomValues(new Uint8Array(96));
   return window.crypto.subtle
     .encrypt(
@@ -58,10 +61,20 @@ export const encrypt = (sharedKey: any, data: any) => {
 };
 
 export const decrypt = (sharedKey: any, iv: any, enc: any) =>
-  window.crypto.subtle.decrypt(
-    { ...aesParams, iv: _base64ToArrayBuffer(iv) }, // TODO: use sequence num as auth tag
-    sharedKey,
-    _base64ToArrayBuffer(enc)
+  sharedKey
+    ? window.crypto.subtle.decrypt(
+        { ...aesParams, iv: _base64ToArrayBuffer(iv) }, // TODO: use sequence num as auth tag
+        sharedKey,
+        _base64ToArrayBuffer(enc)
+      )
+    : Promise.reject("Invalid shared key");
+
+export const encryptObject = (sharedKey: any, data: any) =>
+  encrypt(sharedKey, new TextEncoder().encode(JSON.stringify(data)));
+
+export const decryptObject = (sharedKey: any, iv: any, enc: any) =>
+  decrypt(sharedKey, iv, enc).then((plaindata) =>
+    JSON.parse(new TextDecoder().decode(plaindata))
   );
 
 export const encryptTest = (context: any) =>

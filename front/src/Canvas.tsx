@@ -162,48 +162,46 @@ function Canvas(props: Props) {
   }, [forcedHistory]);
 
   return (
-    <div className="canvas1">
-      <canvas
-        ref={canvasRef}
-        height={400}
-        width={400}
-        onMouseDown={(e) =>
-          handlePaintStart(
-            e.clientX,
-            e.clientY,
-            (e.target as HTMLCanvasElement).getContext("2d")
-          )
-        }
-        onMouseMove={(e) =>
-          drawMode.current &&
-          handlePaint(
-            e.clientX,
-            e.clientY,
-            (e.target as HTMLCanvasElement).getContext("2d")
-          )
-        }
-        //onWheel={handleCanvasWheel}
-        onMouseUp={handlePaintEnd}
-        onMouseLeave={handlePaintEnd}
-        onTouchStart={(e) =>
-          handlePaintStart(
-            e.changedTouches[0].clientX,
-            e.changedTouches[0].clientY,
-            (e.target as HTMLCanvasElement).getContext("2d")
-          )
-        }
-        onTouchMove={(e) =>
-          drawMode.current &&
-          handlePaint(
-            e.changedTouches[0].clientX,
-            e.changedTouches[0].clientY,
-            (e.target as HTMLCanvasElement).getContext("2d")
-          )
-        }
-        onTouchEnd={handlePaintEnd}
-        onContextMenu={(e) => e.preventDefault()}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      height={400}
+      width={400}
+      onMouseDown={(e) =>
+        handlePaintStart(
+          e.clientX,
+          e.clientY,
+          (e.target as HTMLCanvasElement).getContext("2d")
+        )
+      }
+      onMouseMove={(e) =>
+        drawMode.current &&
+        handlePaint(
+          e.clientX,
+          e.clientY,
+          (e.target as HTMLCanvasElement).getContext("2d")
+        )
+      }
+      //onWheel={handleCanvasWheel}
+      onMouseUp={handlePaintEnd}
+      onMouseLeave={handlePaintEnd}
+      onTouchStart={(e) =>
+        handlePaintStart(
+          e.changedTouches[0].clientX,
+          e.changedTouches[0].clientY,
+          (e.target as HTMLCanvasElement).getContext("2d")
+        )
+      }
+      onTouchMove={(e) =>
+        drawMode.current &&
+        handlePaint(
+          e.changedTouches[0].clientX,
+          e.changedTouches[0].clientY,
+          (e.target as HTMLCanvasElement).getContext("2d")
+        )
+      }
+      onTouchEnd={handlePaintEnd}
+      onContextMenu={(e) => e.preventDefault()}
+    />
   );
 }
 

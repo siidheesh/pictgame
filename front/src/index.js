@@ -2,10 +2,7 @@ import { inspect } from "@xstate/inspect";
 import React from "react";
 import ReactDOM from "react-dom";
 import "./index.css";
-import App from "./App.tsx";
-import Canvas from "./Canvas.tsx";
-//import Home from './Home';
-import Main from "./Main";
+import App from "./Main";
 import reportWebVitals from "./reportWebVitals";
 
 /*
@@ -17,7 +14,7 @@ inspect({
 
 ReactDOM.render(
   <React.StrictMode>
-    <Main />
+    <App />
   </React.StrictMode>,
   document.getElementById("root")
 );

@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import { assign, send, interpret, createMachine, Machine } from "xstate";
+import { assign, send, interpret, createMachine } from "xstate";
 import {
   generateKeyPair,
   exportRawKey,
@@ -8,8 +8,8 @@ import {
   encryptTest,
   checkTest,
   replyTest,
-  encrypt,
-  decrypt,
+  encryptObject,
+  decryptObject,
 } from "./crypto";
 import {
   MainContext,
@@ -22,45 +22,29 @@ import {
 const socket = io("wss://api.siidhee.sh");
 
 const errors = [
-  "ERR_GEN_KEYS",
-  "ERR_EXPORT_KEYS",
-  "ERR_IMPORT_SHARED_KEY",
-  "ERR_GEN_SHARED_KEY",
-  "ERR_SEND_TEST",
-  "ERR_CHECK_TEST",
-  "ERR_REPLY_TEST",
-].reduce((acc: any, evt) => {
-  acc[evt /*.replace("ERR_","error.").toLowerCase()*/] = {
-    target: "error",
-    actions: console.log,
-  };
-  return acc;
-}, {});
-
-/*
-const generateKeyPair = exportRawKey = importBobKey = generateSharedKey = encryptTest = replyTest = checkTest = (
-    context
-) =>
-    new Promise((resolve, reject) => {
-        setTimeout(
-            () =>
-                Math.random() >= 0
-                    ? resolve({})
-                    : reject(new Error("key processing failed")),
-            500
-        );
-    });
-*/
-
-const promiseMachine = Machine({
-  id: "promise",
-  initial: "pending",
-  states: {
-    pending: {},
-    resolved: {},
-    rejected: {},
-  },
-});
+  // errorType, errorMessage, isRecoverable
+  ["ERR_GEN_KEYS", "Failed to generate encryption keys", false],
+  ["ERR_EXPORT_KEYS", "Failed to process encryption keys", false],
+  ["ERR_IMPORT_SHARED_KEY", "Failed to process shared key", true],
+  ["ERR_GEN_SHARED_KEY", "Failed to generate shared key", true],
+  ["ERR_SEND_TEST", "Matchmaking failed", true],
+  ["ERR_CHECK_TEST", "Matchmaking failed", true],
+  ["ERR_REPLY_TEST", "Matchmaking failed", true],
+].reduce(
+  (acc: any, [errorType, errorMessage, isRecoverable]: any) => ({
+    ...acc,
+    [errorType]: {
+      ...(!isRecoverable && { target: "error" }), // transit to error if !isRecoverable
+      actions: [
+        console.log,
+        assign({
+          errorMsg: !isRecoverable ? errorMessage : `Error type '${errorType}'`,
+        }),
+      ],
+    },
+  }),
+  {}
+);
 
 const mainMachine = createMachine<MainContext>(
   {
@@ -68,6 +52,7 @@ const mainMachine = createMachine<MainContext>(
     strict: true,
     initial: "init",
     context: {
+      errorMsg: "",
       myPrivateKey: undefined,
       myPublicKey: undefined,
       name: "",
@@ -92,11 +77,6 @@ const mainMachine = createMachine<MainContext>(
       ],
       ...errors,
     },
-    invoke: {
-      // accessible via state.children.pm
-      id: "pm",
-      src: promiseMachine,
-    },
     states: {
       init: {
         type: "parallel",
@@ -116,7 +96,7 @@ const mainMachine = createMachine<MainContext>(
                     }),
                   },
                   onError: {
-                    actions: [send("ERR_GEN_KEYS"), "alertUser"],
+                    actions: send("ERR_GEN_KEYS"),
                   },
                 },
               },
@@ -225,10 +205,9 @@ const mainMachine = createMachine<MainContext>(
             after: [{ delay: "matchConfirmation", target: "waiting" }],
           },
           handshake: {
-            // either a MATCHREQ response to our HELLO or MATCHREQ_ACK response to our MATCHREQ response to someone's HELLO
             initial: "importBobKey",
             on: {
-              HANDSHAKE_TIMEOUT: "",
+              HANDSHAKE_TIMEOUT: "waiting",
             },
             states: {
               importBobKey: {
@@ -276,15 +255,15 @@ const mainMachine = createMachine<MainContext>(
                   },
                   aliceTest: {
                     initial: "sendTest",
-                    on: {
-                      RECV_TEST_REPLY: ".checkTest",
-                    },
                     entry: assign({
                       testData: (context, event) =>
                         window.crypto.getRandomValues(new Uint8Array(10)),
                     }),
                     states: {
                       sendTest: {
+                        on: {
+                          RECV_TEST_REPLY: "checkTest",
+                        },
                         invoke: {
                           id: "encryptTest",
                           src: encryptTest,
@@ -351,7 +330,10 @@ const mainMachine = createMachine<MainContext>(
             type: "parallel",
             onDone: "matched",
             on: {
-              TIMEOUT: "#match",
+              TIMEOUT: {
+                target: "#match",
+                actions: "sendTimedOut",
+              },
             },
             states: {
               alice: {
@@ -480,45 +462,6 @@ const mainMachine = createMachine<MainContext>(
           result: {},
         },
       },
-      /*game: {
-        type: "parallel",
-        states: {
-          alice: {
-            states: {
-              drawing: {
-                on: {
-                  SUBMIT_PIC: {
-                    target: "waitForBob",
-                    actions: "sendPic",
-                  },
-                },
-              },
-              waitForBob: {},
-              guessing: {},
-              fin: { type: "final" },
-            },
-          },
-          bob: {
-            states: {
-              drawing: {
-                on: {
-                  RECEIVED_PIC: {
-                    target: "fin",
-                    actions: assign({
-                      oppData: (_, event) => ({
-                        pic: event.pic,
-                        label: event.label,
-                      }),
-                    }),
-                  },
-                },
-              },
-              guessing: {}, // in future, maybe request correct answer from bob at this point, instead of sending label tgt with pic
-              fin: { type: "final" },
-            },
-          },
-        },
-      },*/
       error: {},
     },
   },
@@ -550,8 +493,11 @@ const mainMachine = createMachine<MainContext>(
         socket.emit("DATA", context.target, { type: "USER_ACCEPTS" }),
       sendRejection: (context, _) =>
         socket.emit("DATA", context.target, { type: "USER_REJECTS" }),
+      sendTimedOut: (context, _) =>
+        socket.emit("DATA", context.target, { type: "USER_TIMEDOUT" }),
       sendTest: (context, event) =>
         socket.emit("DATA", context.target, {
+          //TOD: use username instead of random testData
           type: "MATCHTEST",
           iv: event.data.iv,
           enc: event.data.enc,
@@ -570,26 +516,16 @@ const mainMachine = createMachine<MainContext>(
         socket.emit("DATA", context.target, { type: "USER_QUIT" }),
       clearOppData: assign({ oppData: (_) => undefined }),
       sendPic: (context, event) =>
-        encrypt(
-          context.sharedKey,
-          new TextEncoder().encode(
-            JSON.stringify({
-              pic: serialiseStrokes(event.data),
-              label: `${context.name}'s picture`,
-            })
-          )
-        ).then(({ iv, enc }) => {
-          socket.emit("DATA", context.target, {
-            type: event.type,
-            iv,
-            enc,
-          });
-        }),
+        encryptObject(context.sharedKey, {
+          type: "SUBMIT_PIC",
+          pic: serialiseStrokes(event.data),
+          label: `${context.name}'s picture`,
+        }).then((iv_enc) => socket.emit("DATA", context.target, iv_enc)),
       sendGuess: (context, event) =>
-        socket.emit("DATA", context.target, {
+        encryptObject(context.sharedKey, {
           type: "BOB_GUESSED",
           guess: event.guess,
-        }),
+        }).then((iv_enc) => socket.emit("DATA", context.target, iv_enc)),
     },
   }
 );
@@ -597,11 +533,93 @@ const mainMachine = createMachine<MainContext>(
 export const mainService = interpret(mainMachine, {
   devTools: true,
 })
-  /*.onEvent((event) => console.log("event", event))
-  .onTransition((state) => {
+  .onEvent((event) => console.log("event", event))
+  /*.onTransition((state) => {
     console.log("stateΔ", state.value, state);
   })*/
   .start();
+
+const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
+  if (payload.type) {
+    switch (payload.type) {
+      case "MATCHCHECK":
+        if (!payload.key) break;
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("MATCH_CHECK", {
+          source,
+          key: _base64ToArrayBuffer(payload.key),
+        });
+        break;
+      case "MATCHCHECKACK":
+        if (!payload.key) break;
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("MATCH_CHECK_ACK", {
+          source,
+          key: _base64ToArrayBuffer(payload.key),
+        });
+        break;
+      case "USER_ACCEPTS":
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("BOB_ACCEPTS");
+        break;
+      case "USER_REJECTS":
+      case "USER_TIMEDOUT":
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("BOB_REJECTS");
+        break;
+      case "MATCHTEST":
+        if (!payload.iv || !payload.enc) break;
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("RECV_TEST", { iv: payload.iv, enc: payload.enc });
+        break;
+      case "MATCHTEST_REPLY":
+        if (!payload.iv || !payload.enc) break;
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("RECV_TEST_REPLY", {
+          iv: payload.iv,
+          enc: payload.enc,
+        });
+        break;
+      case "MATCHTEST_ACK":
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("RECV_TEST_PASSED");
+        break;
+      case "USER_QUIT":
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("QUIT");
+        break;
+      case "HEARTBEAT":
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("HEARTBEAT");
+        break;
+      case "GAME":
+        if (!payload.event) break;
+        console.log(`received a ${payload.type} from ${source}`);
+        break;
+      case "SUBMIT_PIC":
+        if (!wasEncrypted || !payload.pic || !payload.label) break;
+        console.log(`received a ${payload.type} from ${source}`);
+        mainService.send("RECEIVED_PIC", {
+          pic: deserialiseStrokes(payload.pic),
+          label: payload.label,
+        });
+        break;
+      case "BOB_GUESSED":
+        if (!payload.guess) break;
+        mainService.send("BOB_GUESSED", { guess: payload.guess });
+        break;
+      default:
+        break;
+    }
+  } else if (payload.iv && payload.enc && mainService.state.context.sharedKey) {
+    console.log(`received encrypted DATA from ${source}`);
+    decryptObject(
+      mainService.state.context.sharedKey,
+      payload.iv,
+      payload.enc
+    ).then((plainobj) => processData(source, plainobj, true));
+  }
+};
 
 socket.on("INIT", () => mainService.send("CONNECTED"));
 
@@ -618,86 +636,7 @@ socket.on("MATCH_DECREE", (source: string) => {
 socket.on("DATA", (data: any[]) => {
   console.log("onDATA", data);
   if (Array.isArray(data)) {
-    const source = data[0],
-      payload = data[1];
-    if (typeof payload === "object" && payload.type) {
-      switch (payload.type) {
-        case "MATCHCHECK":
-          if (!payload.key) break;
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("MATCH_CHECK", {
-            source,
-            key: _base64ToArrayBuffer(payload.key),
-          });
-          break;
-        case "MATCHCHECKACK":
-          if (!payload.key) break;
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("MATCH_CHECK_ACK", {
-            source,
-            key: _base64ToArrayBuffer(payload.key),
-          });
-          break;
-        case "USER_ACCEPTS":
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("BOB_ACCEPTS");
-          break;
-        case "USER_REJECTS":
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("BOB_REJECTS");
-          break;
-        case "MATCHTEST":
-          if (!payload.iv || !payload.enc) break;
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("RECV_TEST", { iv: payload.iv, enc: payload.enc });
-          break;
-        case "MATCHTEST_REPLY":
-          if (!payload.iv || !payload.enc) break;
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("RECV_TEST_REPLY", {
-            iv: payload.iv,
-            enc: payload.enc,
-          });
-          break;
-        case "MATCHTEST_ACK":
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("RECV_TEST_PASSED");
-          break;
-        case "USER_QUIT":
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("QUIT");
-          break;
-        case "HEARTBEAT":
-          console.log(`received a ${payload.type} from ${source}`);
-          mainService.send("HEARTBEAT");
-          break;
-        case "GAME":
-          if (!payload.event) break;
-          console.log(`received a ${payload.type} from ${source}`);
-          break;
-        case "SUBMIT_PIC":
-          if (!payload.iv || !payload.enc) break;
-          mainService.state.context.sharedKey &&
-            decrypt(
-              mainService.state.context.sharedKey,
-              payload.iv,
-              payload.enc
-            ).then((plaindata) => {
-              const plainobj = JSON.parse(new TextDecoder().decode(plaindata));
-              mainService.send("RECEIVED_PIC", {
-                pic: deserialiseStrokes(plainobj.pic),
-                label: plainobj.label,
-              });
-            });
-          break;
-        case "BOB_GUESSED":
-          if (!payload.guess) break;
-          mainService.send("BOB_GUESSED", { guess: payload.guess });
-          break;
-        default:
-          break;
-      }
-    }
+    processData(data[0], data[1]);
   }
 });
 

@@ -118,7 +118,7 @@ const processClientMsg = (origMsg) => {
           socket.username = msg[2];
           debug(`${msg[1]} is henceforth ${socket.username}`);
           socket.emit("NAME_DECREE", msg[2]);
-          delete socket.uuid;
+          if (socket.uuid) delete socket.uuid;
           found = true;
         }
       });
@@ -127,7 +127,6 @@ const processClientMsg = (origMsg) => {
       io.sockets.sockets.forEach((socket) => {
         if (found) return;
         else if (socket && socket.username === msg[2]) {
-          //debug(`we have ${msg[2]}, sending ${msg[0]}`);
           socket.emit("DATA", [msg[1], msg[3]]);
           found = true;
         }
@@ -217,21 +216,24 @@ io.on("connection", (socket) => {
   });
 
   socket.on("MATCHREQ", (options) => {
-    pub.publish(
-      clientChannel,
-      JSON.stringify([msgType.MATCH_REQ, socket.username, options])
-    );
+    socket.username && // BUG: when throttling, it seems multiple sockets are created, and username never gets set? to be investigated
+      pub.publish(
+        clientChannel,
+        JSON.stringify([msgType.MATCH_REQ, socket.username, options])
+      );
   });
 
   socket.on("DATA", (target, data) => {
-    pub.publish(
-      clientChannel,
-      JSON.stringify([msgType.DATA, socket.username, target, data])
-    );
+    socket.username &&
+      pub.publish(
+        clientChannel,
+        JSON.stringify([msgType.DATA, socket.username, target, data])
+      );
   });
 
   socket.on("disconnect", () => {
-    pub.srem(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
+    socket.username &&
+      pub.srem(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
     debug(`${socket.username} disconnected`);
   });
 

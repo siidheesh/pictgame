@@ -27,3 +27,5 @@ yarn-debug.log*
 yarn-error.log*
 
 .eslintcache/back/nodejs/consts.js
+front/.eslintcache
+front/src/.prettierrc

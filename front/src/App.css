@@ -1,5 +1,6 @@
 .App {
   text-align: center;
+  overflow: hidden;
 }
 
 .App-logo {
@@ -29,7 +30,7 @@
 }
 
 canvas {
-  border: 1px solid red;
+  /*border: 1px solid red;*/
   touch-action: none;
   /*height:1000px;
   width: 1000px;*/

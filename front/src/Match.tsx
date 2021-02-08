@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Typography } from "@material-ui/core";
 import CheckCircleOutlineRoundedIcon from "@material-ui/icons/CheckCircleOutlineRounded";
 import { MainContext } from "./util";
+import { time } from "console";
 //import { useService } from "@xstate/react";
 //import { mainService } from "./machine";
 
@@ -58,31 +59,280 @@ function CircularProgressWithLabel(props: any) {
         alignItems="center"
         justifyContent="center"
       >
-        <Typography variant="caption" component="div" color="textSecondary">
-          {Math.round(props.value)}
+        <Typography variant="h5" component="div" color="textSecondary">
+          {Math.round(props.value / 10)}
         </Typography>
       </Box>
     </Box>
   );
 }
 
+const LookingForPlayers = (props: any) => {
+  const showNoPlayerMsgDelay = 3000;
+  const [showNoPlayersMsg, setShowNoPlayersMsg] = useState(false);
+
+  useEffect(() => {
+    console.log("useff matchmaking");
+    const h = window.setTimeout(() => {
+      console.log("useff matchmaking cb");
+      setShowNoPlayersMsg(true);
+    }, showNoPlayerMsgDelay);
+    return () => {
+      console.log("useff matchmaking cleanup");
+    };
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          //border: "solid blue",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            height: "250px",
+            //border: "dotted",
+            margin: "auto",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <Typography variant="h5" noWrap>
+              Looking for players...
+            </Typography>
+            {showNoPlayersMsg && (
+              <Typography variant="subtitle1">
+                No one found yet, we'll keep searching!
+              </Typography>
+            )}
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <CircularProgress color="primary" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Acceptance = (props: any) => {
+  const {
+    context,
+    aliceAccepted,
+    bobAccepted,
+    handleAccept,
+    handleReject,
+    handleTimeout,
+  } = props;
+
+  const maxTime = 10;
+  const [timeLeft, setTimeLeft] = useState(maxTime);
+
+  useEffect(() => {
+    // TODO: move into mainMachine?
+    console.log("useff acceptance", timeLeft);
+    if (timeLeft > 0) {
+      const h = window.setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => {
+        console.log("useff acceptance cleanup", timeLeft);
+        window.clearTimeout(h);
+      };
+    } else handleTimeout();
+  }, [timeLeft, handleTimeout]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        //border: "dashed",
+      }}
+    >
+      <div style={{ paddingBottom: "20px" }}>
+        <Typography variant="h4" align="center">
+          Player found!
+        </Typography>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          //border: "dashed",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            width: "300px",
+            height: "200px",
+            //borderStyle: "dotted",
+            margin: "auto",
+            justifyContent: "center",
+            //border: "dashed",
+          }}
+        >
+          <div
+            style={{
+              textAlign: "center" /*display: "flex", justifyContent: "center"*/,
+            }}
+          >
+            <Typography variant="h5" noWrap>
+              {context.name}
+            </Typography>
+            <Typography variant="subtitle2" noWrap>
+              {
+                /*aliceAccepted
+                ? "(aka you) is ready to play!"
+              : "(aka you) is still deciding"*/ "(aka you)"
+              }
+            </Typography>
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            {aliceAccepted ? (
+              <CheckCircleOutlineRoundedIcon
+                style={{
+                  width: 80,
+                  height: 80,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  //border: "dashed red",
+                  justifyContent: "center",
+                }}
+              >
+                <Button onClick={handleAccept} color="primary">
+                  Ready
+                </Button>
+                <Button onClick={handleReject} color="secondary">
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        <br />
+        <div
+          style={{
+            position: "relative",
+            width: "300px",
+            height: "200px",
+            //border: "dashed",
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <Typography variant="h5" noWrap>
+              {context.target}
+            </Typography>
+            <Typography variant="subtitle2" noWrap>
+              {bobAccepted ? "is ready to play!" : "is still deciding"}
+            </Typography>
+          </div>
+          {bobAccepted ? (
+            <CheckCircleOutlineRoundedIcon
+              style={{
+                width: 80,
+                height: 80,
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <CircularProgress />
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ margin: "auto" }}>
+        <CircularProgressWithLabel
+          value={(timeLeft / maxTime) * 100}
+          color={timeLeft <= 5 ? "secondary" : "primary"}
+        />
+      </div>
+    </div>
+  );
+};
+
 const Match = (props: any) => {
   const { state, send } = props;
   const context: MainContext = state.context;
   const m = state.matches;
-  //const [time, setTime] = useState(100);
+
+  const inIdle = m("idle");
+  const inMatchmaking =
+    m("match.waiting") ||
+    m("match.waitForConfirmation") ||
+    m("match.handshake");
+  const inAcceptance = m("match.acceptance");
 
   console.log("match RENDER");
 
   /*useEffect(() => {
-    if (!m("match.acceptance")) return;
-    console.log("useff", time);
-    if (time > 0) {
-      window.setTimeout(() => setTime(time - 10), 1000);
+    if (inMatchmaking) {
+      console.log("useff matchmaking");
+      const h = window.setTimeout(() => {
+        console.log("useff matchmaking cb");
+        setShowNoPlayersMsg(true);
+      }, 3000);
+      return () => {
+        console.log("useff matchmaking cleanup");
+        window.clearTimeout(h);
+      };
+    } else {
+      setShowNoPlayersMsg(false);
     }
-  });*/
+  }, [inMatchmaking]);*/
 
-  if (m("idle")) {
+  if (inIdle) {
     const handleStart = () => send("MATCH");
 
     return (
@@ -109,212 +359,29 @@ const Match = (props: any) => {
     );
   }
 
-  if (
-    m("match.waiting") ||
-    m("match.waitForConfirmation") ||
-    m("match.handshake")
-  ) {
-    /*return (
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-      >
-        <Paper elevation={6}>
-          <Box
-            p={1}
-            style={{
-              alignItems: "center",
-              justifyContent: "center",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <Typography variant="h5">{context.name}</Typography>
-            <CircularProgress />
-            <p>Searching for matches...</p>
-          </Box>
-        </Paper>
-      </div>
-    );*/
-    return (
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-      >
-        <div
-          style={{
-            position: "relative",
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            //border: "solid blue",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              height: "200px",
-              //borderStyle: "dotted",
-              margin: "auto",
-              justifyContent: "space-around",
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <Typography variant="h5" noWrap>
-                Looking for players...
-              </Typography>
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                left: "50%",
-                top: "50%",
-                transform: "translate(-50%, -50%)",
-              }}
-            >
-              <CircularProgress />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (inMatchmaking) {
+    return <LookingForPlayers />;
   }
 
-  if (m("match.acceptance")) {
+  if (inAcceptance) {
     const aliceAccepted = m("match.acceptance.alice.ready");
     const bobAccepted = m("match.acceptance.bob.ready");
 
     const handleAccept = () => send("ALICE_ACCEPTS");
     const handleReject = () => send("ALICE_REJECTS");
+    const handleTimeout = () => send("TIMEOUT");
 
     return (
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          //border: "dashed",
+      <Acceptance
+        {...{
+          context,
+          aliceAccepted,
+          bobAccepted,
+          handleAccept,
+          handleReject,
+          handleTimeout,
         }}
-      >
-        <div style={{ paddingBottom: "20px" }}>
-          <Typography variant="h4" align="center">
-            Player found!
-          </Typography>
-        </div>
-        <div
-          style={{
-            position: "relative",
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            //border: "dashed",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              width: "300px",
-              height: "200px",
-              //borderStyle: "dotted",
-              margin: "auto",
-              justifyContent: "space-around",
-              //border: "dashed",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <Typography variant="h5" noWrap>
-                {context.name}
-              </Typography>
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                left: "50%",
-                top: "50%",
-                transform: "translate(-50%, -50%)",
-              }}
-            >
-              {aliceAccepted ? (
-                <CheckCircleOutlineRoundedIcon
-                  style={{
-                    width: 80,
-                    height: 80,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    //border: "dashed red",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Button onClick={handleAccept} color="primary">
-                    Accept
-                  </Button>
-                  <Button onClick={handleReject} color="secondary">
-                    Reject
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-          <br />
-          <div
-            style={{
-              position: "relative",
-              width: "300px",
-              height: "200px",
-              //border: "dashed",
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <Typography variant="h5" noWrap>
-                {context.target}
-              </Typography>
-              {!bobAccepted && "is still deciding"}
-            </div>
-            {bobAccepted ? (
-              <CheckCircleOutlineRoundedIcon
-                style={{
-                  width: 80,
-                  height: 80,
-                  position: "absolute",
-                  left: "50%",
-                  top: "50%",
-                  transform: "translate(-50%, -50%)",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  top: "50%",
-                  transform: "translate(-50%, -50%)",
-                }}
-              >
-                <CircularProgress />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      />
     );
   }
 

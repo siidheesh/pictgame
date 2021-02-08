@@ -3,11 +3,12 @@ import { useService } from "@xstate/react";
 import { mainService } from "./machine";
 import Game from "./Game";
 import Match from "./Match";
-import { CircularProgress } from "@material-ui/core";
+import { CircularProgress, CssBaseline, Typography } from "@material-ui/core";
 import ToggleButton from "@material-ui/lab/ToggleButton";
 import Brightness7RoundedIcon from "@material-ui/icons/Brightness7Rounded";
 import Brightness4RoundedIcon from "@material-ui/icons/Brightness4Rounded";
-
+import { ThemeProvider, createMuiTheme } from "@material-ui/core/styles";
+import { useLocalStorage } from "./util";
 const Loading = (props: any) => (
   <div
     style={{
@@ -26,21 +27,28 @@ const Loading = (props: any) => (
   </div>
 );
 
+const Error = (props: any) => (
+  <div
+    style={{
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+    }}
+  >
+    <Typography variant="h4">Error ☠️</Typography>
+    <br />
+    <Typography variant="caption">{props.msg}</Typography>
+  </div>
+);
+
 const Main = () => {
   const [state, send] = useService(mainService);
-  const [darkMode, setDarkMode] = useState(false);
   const m = state.matches;
-
-  //const [open, setOpen] = useState(true);
-  /*
-  useEffect(() => {
-    console.log("closure", state);
-    const handle = window.setTimeout(() => setOpen(false), 2000);
-    return () => {
-      console.log("cleartimer", state);
-      window.clearTimeout(handle);
-    };
-  });*/
 
   console.log("main RENDER");
 
@@ -54,8 +62,35 @@ const Main = () => {
     return <Loading msg={msg} />;
   }
 
+  if (m("error")) {
+    return <Error msg={state.context.errorMsg} />;
+  }
+
+  return m("game") ? (
+    <Game {...{ state, send }} />
+  ) : (
+    <Match {...{ state, send }} />
+  );
+};
+
+const App = (props: any) => {
+  const [darkMode, setDarkMode] = useLocalStorage<boolean>("darkMode", true);
+  const theme = createMuiTheme({
+    palette: {
+      type: darkMode ? "dark" : "light",
+    },
+    overrides: {
+      MuiPaper: {
+        root: {
+          backgroundColor: "white",
+        },
+      },
+    },
+  });
+
   return (
-    <React.Fragment>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
       <div
         style={{
           position: "fixed",
@@ -63,27 +98,20 @@ const Main = () => {
           right: 0,
           paddingRight: "10px",
           paddingTop: "10px",
+          zIndex: 999,
         }}
       >
-        {/*<Switch
-          checkedIcon={<Brightness4RoundedIcon />}
-          icon={<Brightness7RoundedIcon color="primary" />}
-          size="medium"
-        />*/}
         <ToggleButton
+          value={darkMode}
           selected={darkMode}
           onChange={() => setDarkMode(!darkMode)}
         >
-          {darkMode ? <Brightness4RoundedIcon /> : <Brightness7RoundedIcon />}
+          {darkMode ? <Brightness7RoundedIcon /> : <Brightness4RoundedIcon />}
         </ToggleButton>
       </div>
-      {m("game") ? (
-        <Game {...{ state, send, darkMode }} />
-      ) : (
-        <Match {...{ state, send, darkMode }} />
-      )}
-    </React.Fragment>
+      <Main />
+    </ThemeProvider>
   );
 };
 
-export default Main;
+export default App;
