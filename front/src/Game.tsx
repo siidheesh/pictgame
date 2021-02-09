@@ -36,7 +36,7 @@ const Guess = (props: any) => {
         display: "grid",
         height: "100%",
         //border: "green dashed",
-        padding: "50px 0 50px 0",
+        padding: "50px 10px 50px 10px",
       }}
     >
       <div
@@ -113,6 +113,7 @@ const AwaitBob = (props: any) => {
       style={{
         display: "grid",
         height: "100%",
+        padding: "10px",
         //border: "green dashed",
       }}
     >
@@ -208,7 +209,7 @@ const Result = (props: any) => {
           display: "grid",
           height: "100%",
           //border: "green dashed",
-          padding: "50px 0 50px 0",
+          padding: "50px 5px 50px 5px",
         }}
       >
         <div
@@ -221,7 +222,7 @@ const Result = (props: any) => {
         >
           <div style={{ marginBottom: "50px" }}>
             <Typography variant="h4" align="center">
-              🥳 Who won? Who lost? You decide! 🥳
+              Who won? Who lost? You decide! 🥳
             </Typography>
           </div>
           <div
@@ -233,9 +234,15 @@ const Result = (props: any) => {
               boxSizing: "inherit",
               justifyContent: "center",
               alignItems: "center",
+              //border: "red dashed",
             }}
           >
-            <div>
+            <div
+              style={{
+                //border: "blue dashed",
+                padding: "10px",
+              }}
+            >
               <div style={{ marginBottom: "20px" }}>
                 <Typography variant="h5">Your guess:</Typography>
                 <Typography variant="h6">{aliceGuess}</Typography>
@@ -272,7 +279,13 @@ const Result = (props: any) => {
                 <Typography variant="subtitle1">{oppData.label}</Typography>
               </div>
             </div>
-            <div style={{ marginLeft: "20px" }}>
+
+            <div
+              style={{
+                //border: "orange dashed",
+                padding: "10px",
+              }}
+            >
               <div style={{ marginBottom: "20px" }}>
                 <Typography variant="h5">{bobName}'s guess:</Typography>
                 <Typography variant="h6">{bobGuess}</Typography>

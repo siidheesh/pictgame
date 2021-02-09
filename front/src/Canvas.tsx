@@ -166,6 +166,7 @@ function Canvas(props: Props) {
       ref={canvasRef}
       height={400}
       width={400}
+      style={{ touchAction: isLocked ? "auto" : "none" }} // enabled touch scrolling if canvas is locked
       onMouseDown={(e) =>
         handlePaintStart(
           e.clientX,

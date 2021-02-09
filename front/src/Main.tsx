@@ -75,6 +75,7 @@ const Start = React.memo((props: any) => {
       style={{
         display: "grid",
         height: "100%",
+        padding: "10px",
         //border: "green dashed",
       }}
     >
@@ -88,6 +89,7 @@ const Start = React.memo((props: any) => {
         }}
       >
         <Typography variant="h5">Welcome, {name}!</Typography>
+        <div style={{ marginBottom: "20px" }} />
         <Button onClick={onStart}>Start game</Button>
       </div>
     </div>

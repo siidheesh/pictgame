@@ -45,6 +45,7 @@ const LookingForPlayers = (props: any) => {
       style={{
         display: "grid",
         height: "100%",
+        padding: "10px",
         //border: "green dashed",
       }}
     >

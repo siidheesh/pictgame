@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import "./Draw.css";
 import {
   Button,
   ButtonGroup,
@@ -67,6 +66,7 @@ const Draw = (props: DrawProps) => {
       style={{
         display: "grid",
         height: "100%",
+        padding: "50px 10px 50px 10px",
         //border: "green dashed",
       }}
     >
@@ -76,7 +76,7 @@ const Draw = (props: DrawProps) => {
           flexDirection: "column",
           alignItems: "center",
           width: "400px",
-          margin: "50px auto 50px auto",
+          margin: "auto",
           //border: "red dashed",
         }}
         //onWheel={handleScroll}
