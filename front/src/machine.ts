@@ -64,6 +64,7 @@ const mainMachine = createMachine<MainContext>(
       forky: false,
       level: getRandInRange(0, 2),
       allowLower: true, //Math.random() >= 0.5,
+      aliceData: undefined,
       oppData: undefined,
       aliceGuess: "",
       bobGuess: "",
@@ -155,6 +156,7 @@ const mainMachine = createMachine<MainContext>(
         },
       },
       idle: {
+        id: "idle",
         on: {
           MATCH: "match",
         },
@@ -392,7 +394,10 @@ const mainMachine = createMachine<MainContext>(
                 on: {
                   SUBMIT_PIC: {
                     target: ".ready",
-                    actions: "sendPic",
+                    actions: [
+                      "sendPic",
+                      assign({ aliceData: (_, event) => event.data }),
+                    ],
                   },
                 },
                 states: {
@@ -459,7 +464,34 @@ const mainMachine = createMachine<MainContext>(
               },
             },
           },
-          result: {},
+          result: {
+            initial: "idle",
+            onDone: "round",
+            states: {
+              idle: {
+                on: {
+                  REMATCH: { target: "waitForBob", actions: "sendRematchReq" },
+                  REMATCH_REQ: "waitForDecision",
+                  BOB_QUIT: "noRematch",
+                },
+              },
+              waitForBob: {
+                on: {
+                  REMATCH_OK: "ready",
+                  REMATCH_REQ: "ready",
+                  BOB_QUIT: "noRematch",
+                },
+              },
+              waitForDecision: {
+                on: {
+                  REMATCH_OK: { target: "ready", actions: "sendRematchAck" },
+                  QUIT: { target: "#idle", actions: "sendQuit" },
+                },
+              },
+              noRematch: {},
+              ready: { type: "final" },
+            },
+          },
         },
       },
       error: {},
@@ -513,19 +545,29 @@ const mainMachine = createMachine<MainContext>(
       sendHeartBeat: (context, _) =>
         socket.emit("DATA", context.target, { type: "HEARTBEAT" }),
       sendQuit: (context, _) =>
-        socket.emit("DATA", context.target, { type: "USER_QUIT" }),
+        socket.emit("DATA", context.target, { type: "BOB_QUIT" }),
       clearOppData: assign({ oppData: (_) => undefined }),
       sendPic: (context, event) =>
         encryptObject(context.sharedKey, {
-          type: "SUBMIT_PIC",
-          pic: serialiseStrokes(event.data),
-          label: `${context.name}'s picture`,
-        }).then((iv_enc) => socket.emit("DATA", context.target, iv_enc)),
+          type: "BOB_DREW",
+          pic: serialiseStrokes(event.data.pic),
+          label: event.data.label,
+        })
+          /*.then((iv_enc) => encryptObject(context.sharedKey, iv_enc)) // lol
+          .then((iv_enc) => encryptObject(context.sharedKey, iv_enc))
+          .then((iv_enc) => encryptObject(context.sharedKey, iv_enc))
+          .then((iv_enc) => encryptObject(context.sharedKey, iv_enc))
+          .then((iv_enc) => encryptObject(context.sharedKey, iv_enc))*/
+          .then((iv_enc) => socket.emit("DATA", context.target, iv_enc)),
       sendGuess: (context, event) =>
         encryptObject(context.sharedKey, {
           type: "BOB_GUESSED",
           guess: event.guess,
         }).then((iv_enc) => socket.emit("DATA", context.target, iv_enc)),
+      sendRematchReq: (context, _) =>
+        socket.emit("DATA", context.target, { type: "REMATCH?" }),
+      sendRematchAck: (context, _) =>
+        socket.emit("DATA", context.target, { type: "REMATCH_OK" }),
     },
   }
 );
@@ -540,11 +582,12 @@ export const mainService = interpret(mainMachine, {
   .start();
 
 const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
+  console.log("processData", source, payload);
   if (payload.type) {
+    console.log(`received a ${payload.type} from ${source}`);
     switch (payload.type) {
       case "MATCHCHECK":
         if (!payload.key) break;
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("MATCH_CHECK", {
           source,
           key: _base64ToArrayBuffer(payload.key),
@@ -552,53 +595,40 @@ const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
         break;
       case "MATCHCHECKACK":
         if (!payload.key) break;
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("MATCH_CHECK_ACK", {
           source,
           key: _base64ToArrayBuffer(payload.key),
         });
         break;
       case "USER_ACCEPTS":
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("BOB_ACCEPTS");
         break;
       case "USER_REJECTS":
       case "USER_TIMEDOUT":
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("BOB_REJECTS");
         break;
       case "MATCHTEST":
         if (!payload.iv || !payload.enc) break;
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("RECV_TEST", { iv: payload.iv, enc: payload.enc });
         break;
       case "MATCHTEST_REPLY":
         if (!payload.iv || !payload.enc) break;
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("RECV_TEST_REPLY", {
           iv: payload.iv,
           enc: payload.enc,
         });
         break;
       case "MATCHTEST_ACK":
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("RECV_TEST_PASSED");
         break;
-      case "USER_QUIT":
-        console.log(`received a ${payload.type} from ${source}`);
-        mainService.send("QUIT");
+      case "BOB_QUIT":
+        mainService.send("BOB_QUIT");
         break;
       case "HEARTBEAT":
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("HEARTBEAT");
         break;
-      case "GAME":
-        if (!payload.event) break;
-        console.log(`received a ${payload.type} from ${source}`);
-        break;
-      case "SUBMIT_PIC":
+      case "BOB_DREW":
         if (!wasEncrypted || !payload.pic || !payload.label) break;
-        console.log(`received a ${payload.type} from ${source}`);
         mainService.send("RECEIVED_PIC", {
           pic: deserialiseStrokes(payload.pic),
           label: payload.label,
@@ -607,6 +637,12 @@ const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
       case "BOB_GUESSED":
         if (!payload.guess) break;
         mainService.send("BOB_GUESSED", { guess: payload.guess });
+        break;
+      case "REMATCH?":
+        mainService.send("REMATCH_REQ");
+        break;
+      case "REMATCH_OK":
+        mainService.send("REMATCH_OK");
         break;
       default:
         break;

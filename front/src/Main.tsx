@@ -3,13 +3,25 @@ import { useService } from "@xstate/react";
 import { mainService } from "./machine";
 import Game from "./Game";
 import Match from "./Match";
-import { CircularProgress, CssBaseline, Typography } from "@material-ui/core";
-import ToggleButton from "@material-ui/lab/ToggleButton";
-import Brightness7RoundedIcon from "@material-ui/icons/Brightness7Rounded";
-import Brightness4RoundedIcon from "@material-ui/icons/Brightness4Rounded";
+import {
+  Button,
+  CircularProgress,
+  CssBaseline,
+  Typography,
+} from "@material-ui/core";
+
 import { ThemeProvider, createMuiTheme } from "@material-ui/core/styles";
+import SpeedDial from "@material-ui/lab/SpeedDial";
+import SpeedDialAction from "@material-ui/lab/SpeedDialAction";
+import SettingsIcon from "@material-ui/icons/Settings";
+import GitHubIcon from "@material-ui/icons/GitHub";
+import Brightness7Icon from "@material-ui/icons/Brightness7";
+import Brightness4Icon from "@material-ui/icons/Brightness4";
+import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline";
+
 import { useLocalStorage } from "./util";
-const Loading = (props: any) => (
+
+const Loading = React.memo((props: any) => (
   <div
     style={{
       position: "absolute",
@@ -25,9 +37,9 @@ const Loading = (props: any) => (
     <CircularProgress />
     {props.msg}
   </div>
-);
+));
 
-const Error = (props: any) => (
+const Error = React.memo((props: any) => (
   <div
     style={{
       position: "absolute",
@@ -40,19 +52,100 @@ const Error = (props: any) => (
       justifyContent: "center",
     }}
   >
-    <Typography variant="h4">Error ☠️</Typography>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      <Typography variant="h4">Error&nbsp;</Typography>
+      <ErrorOutlineIcon />
+    </div>
     <br />
     <Typography variant="caption">{props.msg}</Typography>
   </div>
-);
+));
+
+const Start = React.memo((props: any) => {
+  const { name, onStart } = props;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        height: "100%",
+        //border: "green dashed",
+      }}
+    >
+      <div
+        style={{
+          margin: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          //border: "red dashed",
+        }}
+      >
+        <Typography variant="h5">Welcome, {name}!</Typography>
+        <Button onClick={onStart}>Start game</Button>
+      </div>
+    </div>
+  );
+});
+
+const OptionsFAB = (props: any) => {
+  const [fabOpen, setFabOpen] = useState(false);
+  const { darkMode, setDarkMode } = props;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        marginLeft: "10px",
+        marginTop: "10px",
+        zIndex: 999,
+        transform: "translateZ(0px)",
+      }}
+    >
+      <SpeedDial
+        ariaLabel="Options"
+        hidden={false}
+        icon={<SettingsIcon />}
+        open={fabOpen}
+        direction={"down"}
+        onClick={() => setFabOpen(!fabOpen)}
+      >
+        <SpeedDialAction
+          key={"github"}
+          icon={<GitHubIcon />}
+          tooltipTitle={"Github"}
+          onClick={() => window.open("https://github.com/siidheesh/pictgame")}
+        />
+        <SpeedDialAction
+          key={"darkMode"}
+          icon={darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+          tooltipTitle={darkMode ? "Light" : "Dark"}
+          onClick={() => setDarkMode(!darkMode)}
+        />
+      </SpeedDial>
+    </div>
+  );
+};
 
 const Main = () => {
   const [state, send] = useService(mainService);
   const m = state.matches;
+  const inInit = m("init");
+  const inIdle = m("idle");
+  const inError = m("error");
+  const isMatchmaking = m("match");
+  const inGame = m("game");
 
   console.log("main RENDER");
 
-  if (m("init")) {
+  if (inInit) {
     let msg = "Loading...";
     if (m("init.prepareSocket.disconnected")) {
       msg = "Establishing connection";
@@ -62,26 +155,40 @@ const Main = () => {
     return <Loading msg={msg} />;
   }
 
-  if (m("error")) {
+  if (inError) {
     return <Error msg={state.context.errorMsg} />;
   }
 
-  return m("game") ? (
-    <Game {...{ state, send }} />
-  ) : (
-    <Match {...{ state, send }} />
-  );
+  if (inIdle) {
+    const handleStart = () => send("MATCH");
+    return <Start name={state.context.name} onStart={handleStart} />;
+  }
+
+  if (isMatchmaking) return <Match {...{ state, send }} />;
+
+  if (inGame) return <Game {...{ state, send }} />;
+
+  return <div>main: unhandled {state.toStrings().join(" ")}</div>;
 };
 
-const App = (props: any) => {
+const MainWithOptions = (props: any) => {
   const [darkMode, setDarkMode] = useLocalStorage<boolean>("darkMode", true);
   const theme = createMuiTheme({
     palette: {
       type: darkMode ? "dark" : "light",
+      primary: {
+        main: "#1a9ace",
+      },
     },
     overrides: {
+      MuiFab: {
+        primary: {
+          backgroundColor: "grey",
+        },
+      },
       MuiPaper: {
-        root: {
+        elevation6: {
+          // only Paper components with elevation={6}
           backgroundColor: "white",
         },
       },
@@ -91,27 +198,10 @@ const App = (props: any) => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          paddingRight: "10px",
-          paddingTop: "10px",
-          zIndex: 999,
-        }}
-      >
-        <ToggleButton
-          value={darkMode}
-          selected={darkMode}
-          onChange={() => setDarkMode(!darkMode)}
-        >
-          {darkMode ? <Brightness7RoundedIcon /> : <Brightness4RoundedIcon />}
-        </ToggleButton>
-      </div>
+      <OptionsFAB {...{ darkMode, setDarkMode }} />
       <Main />
     </ThemeProvider>
   );
 };
 
-export default App;
+export default MainWithOptions;

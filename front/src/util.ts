@@ -35,9 +35,10 @@ export interface MainContext {
   helloCounter: number;
   targetKey: any;
   testData: any;
-  forky: boolean; // true if we responded to a MATCHREQ, false if we responded to a HELLO
+  forky: boolean;
   level: number;
   allowLower: boolean;
+  aliceData: any;
   oppData: any;
   aliceGuess: string;
   bobGuess: string;

@@ -1,74 +1,392 @@
-//import { useService } from "@xstate/react";
-//import { mainService, onEvent } from "./machine";
-import { Button, TextField } from "@material-ui/core";
-import { useState } from "react";
-import App from "./App";
+import React, { useState } from "react";
+import {
+  Button,
+  CircularProgress,
+  Paper,
+  TextField,
+  Typography,
+  Dialog,
+} from "@material-ui/core";
+
+import Draw from "./Draw";
 import Canvas from "./Canvas";
 
-const Game = (props: any) => {
-  //const [state, send] = useService(mainService);
-  const { state, send } = props;
+const Guess = (props: any) => {
+  const { oppData, onGuess } = props;
   const [guess, setGuess] = useState("");
+  const [inputValid, setInputValid] = useState({ guess: false });
 
-  const keyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e?.key === "ENTER" || e?.code === "Enter" || e?.keyCode === 13) {
-      send({ type: "ALICE_GUESSED", guess });
+      inputValid.guess && onGuess(guess);
     }
   };
 
-  if (state.matches("game.round.alice.drawing")) {
+  const handleGuessChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
+  ) => {
+    const newGuess = e.target.value;
+    setGuess(newGuess);
+    setInputValid({ guess: !!newGuess });
+  };
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        height: "100%",
+        //border: "green dashed",
+        padding: "50px 0 50px 0",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          //border: "dashed",
+          alignItems: "center",
+          margin: "auto",
+        }}
+      >
+        <div style={{ marginBottom: "50px" }}>
+          <Typography variant="h5" noWrap>
+            {oppData.name} drew this!
+          </Typography>
+        </div>
+        <div>
+          <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+              }}
+            >
+              <Canvas
+                strokeHistory={oppData.pic}
+                onStrokeHistoryChange={() => {}}
+                forcedHistory={oppData.pic}
+                brushColour={"black"}
+                brushRadius={5}
+                eraseMode={false}
+                locked
+              />
+            </div>
+          </Paper>
+        </div>
+        <div style={{ margin: "20px" }}>
+          <Typography variant="h5" noWrap>
+            What could it be? 🤔
+          </Typography>
+        </div>
+        <TextField
+          label="Your guess"
+          variant="outlined"
+          onKeyDown={handleKeyPress}
+          value={guess}
+          onChange={handleGuessChange}
+          helperText={
+            inputValid.guess
+              ? "(press enter to lock in your guess)"
+              : "Must be filled!"
+          }
+          error={!inputValid.guess}
+        />
+        <Typography
+          variant="caption"
+          noWrap
+          style={{ visibility: guess ? "visible" : "hidden" }}
+        >
+          {false && "(press enter to lock in your guess)"}
+        </Typography>
+      </div>
+    </div>
+  );
+};
+
+const AwaitBob = (props: any) => {
+  const { name } = props;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        height: "100%",
+        //border: "green dashed",
+      }}
+    >
+      <div
+        style={{
+          margin: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          //border: "red dashed",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "20px" }}>
+          <Typography variant="h5">
+            Waiting for {name} to finish{" "}
+            {props.drawing ? "drawing" : "guessing"}...
+          </Typography>
+        </div>
+        <CircularProgress color="primary" />
+      </div>
+    </div>
+  );
+};
+
+const ResultRematchWait = (props: any) => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      margin: "20px",
+    }}
+  >
+    <div style={{ textAlign: "center", marginBottom: "20px" }}>
+      <Typography variant="h6">Waiting for {props.name}</Typography>
+    </div>
+    <CircularProgress color="primary" />
+  </div>
+);
+
+const ResultRematchDecide = (props: any) => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      margin: "20px",
+    }}
+  >
+    <div style={{ textAlign: "center", marginBottom: "20px" }}>
+      <Typography variant="h6">{props.name} wants a rematch ❗</Typography>
+    </div>
+    <div>
+      <Button onClick={props.onAccept}>✔️</Button>
+      <Button onClick={props.onReject}>❌</Button>
+    </div>
+  </div>
+);
+
+const Result = (props: any) => {
+  const {
+    aliceGuess,
+    bobGuess,
+    aliceData,
+    oppData,
+    bobName,
+    onRematch,
+    onRematchAck,
+    onQuit,
+    rematchModal,
+    rematchModalType,
+    rematchAvailable,
+  } = props;
+
+  console.log(props);
+
+  return (
+    <React.Fragment>
+      <Dialog open={rematchModal} aria-labelledby="" aria-describedby="">
+        {rematchModal &&
+          (rematchModalType ? (
+            <ResultRematchWait name={bobName} />
+          ) : (
+            <ResultRematchDecide
+              name={bobName}
+              onAccept={onRematchAck}
+              onReject={onQuit}
+            />
+          ))}
+      </Dialog>
+      <div
+        style={{
+          display: "grid",
+          height: "100%",
+          //border: "green dashed",
+          padding: "50px 0 50px 0",
+        }}
+      >
+        <div
+          style={{
+            margin: "auto",
+            display: "flex",
+            flexDirection: "column",
+            //border: "dashed",
+          }}
+        >
+          <div style={{ marginBottom: "50px" }}>
+            <Typography variant="h4" align="center">
+              🥳 Who won? Who lost? You decide! 🥳
+            </Typography>
+          </div>
+          <div
+            style={{
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "row",
+              flexWrap: "wrap",
+              boxSizing: "inherit",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div style={{ marginBottom: "20px" }}>
+                <Typography variant="h5">Your guess:</Typography>
+                <Typography variant="h6">{aliceGuess}</Typography>
+              </div>
+              <div>
+                <Paper
+                  elevation={6}
+                  style={{ width: "400px", height: "400px" }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Canvas
+                      strokeHistory={oppData.pic}
+                      onStrokeHistoryChange={() => {}}
+                      forcedHistory={oppData.pic}
+                      brushColour={"black"}
+                      brushRadius={5}
+                      eraseMode={false}
+                      locked
+                    />
+                  </div>
+                </Paper>
+              </div>
+              <div style={{ margin: "20px" }}>
+                <Typography variant="subtitle1">
+                  According to {bobName}, it's:
+                </Typography>
+                <Typography variant="subtitle1">{oppData.label}</Typography>
+              </div>
+            </div>
+            <div style={{ marginLeft: "20px" }}>
+              <div style={{ marginBottom: "20px" }}>
+                <Typography variant="h5">{bobName}'s guess:</Typography>
+                <Typography variant="h6">{bobGuess}</Typography>
+              </div>
+              <div>
+                <Paper
+                  elevation={6}
+                  style={{ width: "400px", height: "400px" }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Canvas
+                      strokeHistory={aliceData.pic}
+                      onStrokeHistoryChange={() => {}}
+                      forcedHistory={aliceData.pic}
+                      brushColour={"black"}
+                      brushRadius={5}
+                      eraseMode={false}
+                      locked
+                    />
+                  </div>
+                </Paper>
+              </div>
+              <div style={{ margin: "20px" }}>
+                <Typography variant="subtitle1">
+                  According to you, it's:
+                </Typography>
+                <Typography variant="subtitle1">{aliceData.label}</Typography>
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Button onClick={onRematch} disabled={!rematchAvailable}>
+              Ask for Rematch
+            </Button>
+            <div style={{ margin: "10px" }} />
+            <Button onClick={onQuit}>Quit</Button>
+          </div>
+        </div>
+      </div>
+    </React.Fragment>
+  );
+};
+
+const Game = (props: any) => {
+  const { state, send } = props;
+  const m = state.matches;
+
+  const isDrawing = m("game.round.alice.drawing");
+  const waitingForDrawing = m("game.round.bob.drawing");
+  const isGuessing = m("game.guessing.alice.waiting");
+  const waitingForGuess = m("game.guessing.alice.ready");
+  const isEndGame = m("game.result");
+
+  if (isDrawing) {
     return (
-      <App
+      <Draw
+        name={state.context.name}
         onSubmit={(data: any) => send({ type: "SUBMIT_PIC", data })}
         onEvent={() => {}}
       />
     );
-  } else if (state.matches("game.round.bob.drawing")) {
-    return <div>waiting for opp to finish drawing</div>;
-  } else if (state.matches("game.guessing.alice.waiting")) {
-    //<p>Opp pic: {JSON.stringify(state.context.oppData.pic)}</p>
+  }
+
+  if (waitingForDrawing || waitingForGuess) {
+    return <AwaitBob name={state.context.target} drawing={waitingForDrawing} />;
+  }
+
+  if (isGuessing) {
+    const handleGuess = (guess: string) =>
+      send({ type: "ALICE_GUESSED", guess });
+
     return (
-      <div>
-        <Canvas
-          strokeHistory={state.context.oppData.pic}
-          onStrokeHistoryChange={() => {}}
-          forcedHistory={state.context.oppData.pic}
-          brushColour={"black"}
-          brushRadius={5}
-          eraseMode={false}
-          locked
-        />
-        <TextField
-          id="filled-basic"
-          label="Filled"
-          variant="filled"
-          onKeyDown={keyPress}
-          value={guess}
-          onChange={(e) => setGuess(e.target.value)}
-        />
-      </div>
-    );
-  } else if (state.matches("game.result")) {
-    return (
-      <div>
-        <p>
-          you guessed {state.context.aliceGuess}, correct answer was{" "}
-          {state.context.oppData.label}
-        </p>
-        <p>bob guessed {state.context.bobGuess}</p>
-        {state.matches("game.guessing.bob.waiting") && (
-          <p>bob is still guessing</p>
-        )}
-        <p>
-          <Button onClick={() => send("ALICE_REMATCH")}>
-            Ask {state.context.target} for rematch?
-          </Button>
-          <Button onClick={() => send("ALICE_QUIT")}>Quit</Button>
-        </p>
-      </div>
+      <Guess
+        onGuess={handleGuess}
+        oppData={{ ...state.context.oppData, name: state.context.target }}
+      />
     );
   }
-  return <div>game fallthru</div>;
+
+  if (isEndGame) {
+    const resultProps = {
+      aliceGuess: state.context.aliceGuess,
+      bobGuess: state.context.bobGuess,
+      aliceData: state.context.aliceData,
+      oppData: state.context.oppData,
+      bobName: state.context.target,
+      rematchAvailable: !m("game.result.noRematch"),
+      rematchModal:
+        m("game.result.waitForBob") || m("game.result.waitForDecision"),
+      rematchModalType: m("game.result.waitForBob"),
+      onRematch: () => send("REMATCH"),
+      onRematchAck: () => send("REMATCH_OK"),
+      onQuit: () => send("QUIT"),
+    };
+
+    return <Result {...resultProps} />;
+  }
+
+  return <div>game: unhandled {state.toStrings().join(" ")}</div>;
 };
 
 export default Game;
