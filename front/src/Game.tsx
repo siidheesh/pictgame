@@ -63,7 +63,7 @@ const Guess = (props: any) => {
                 justifyContent: "center",
               }}
             >
-              <Canvas forcedHistory={oppData.pic} locked />
+              <Canvas displayedHistory={oppData.pic} locked />
             </div>
           </Paper>
         </div>
@@ -165,7 +165,7 @@ const ResultRematchDecide = React.memo((props: any) => (
   </div>
 ));
 
-const Result = (props: any) => {
+const Result = React.memo((props: any) => {
   const {
     aliceGuess,
     bobGuess,
@@ -252,7 +252,7 @@ const Result = (props: any) => {
                       justifyContent: "center",
                     }}
                   >
-                    <Canvas forcedHistory={oppData.pic} locked />
+                    <Canvas displayedHistory={oppData.pic} locked />
                   </div>
                 </Paper>
               </div>
@@ -287,7 +287,7 @@ const Result = (props: any) => {
                       justifyContent: "center",
                     }}
                   >
-                    <Canvas forcedHistory={aliceData.pic} locked />
+                    <Canvas displayedHistory={aliceData.pic} locked />
                   </div>
                 </Paper>
               </div>
@@ -318,7 +318,7 @@ const Result = (props: any) => {
       </div>
     </React.Fragment>
   );
-};
+});
 
 const OppLeftGame = React.memo((props: any) => (
   <Dialog open={props.open} aria-labelledby="" aria-describedby="">

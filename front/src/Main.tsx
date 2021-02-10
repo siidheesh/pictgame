@@ -9,6 +9,7 @@ import {
   CircularProgress,
   CssBaseline,
   Typography,
+  useMediaQuery,
 } from "@material-ui/core";
 
 import { ThemeProvider, createMuiTheme } from "@material-ui/core/styles";
@@ -145,7 +146,7 @@ const Main = () => {
   const isMatchmaking = m("match");
   const inGame = m("game");
 
-  debug("main RENdDER");
+  debug("main render", state.toStrings().join(" "));
 
   if (inInit) {
     let msg = "Loading...";
@@ -177,7 +178,11 @@ const Main = () => {
 };
 
 const MainWithOptions = (props: any) => {
-  const [darkMode, setDarkMode] = useLocalStorage<boolean>("darkMode", true);
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
+  const [darkMode, setDarkMode] = useLocalStorage<boolean>(
+    "darkMode",
+    prefersDarkMode
+  );
   const theme = createMuiTheme({
     palette: {
       type: darkMode ? "dark" : "light",
@@ -186,6 +191,15 @@ const MainWithOptions = (props: any) => {
       },
     },
     overrides: {
+      /*MuiIconButton: {
+        root: {
+          // fixes bug where undo/redo tooltips remain visible after btn disabled
+          // https://stackoverflow.com/questions/61115913/is-it-possible-to-render-a-tooltip-on-a-disabled-material-ui-button-within-a
+          "&.Mui-disabled": {
+            pointerEvents: "auto",
+          },
+        },
+      },*/
       MuiFab: {
         primary: {
           backgroundColor: "grey",

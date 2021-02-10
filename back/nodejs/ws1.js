@@ -5,6 +5,8 @@ const PORT = process.env.PORT || 5000;
 const { nanoid } = require("nanoid");
 const instanceId = process.env.PORT || nanoid();
 
+const cors = require("cors");
+const bodyParser = require("body-parser");
 const app = require("express")();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
@@ -281,9 +283,27 @@ pub.del(`${CLIENT_NAMES_KEY}_${instanceId}`); // clear client list on start
 
 app.set("trust proxy", 1);
 
+var corsOptions = {
+  origin: ["https://app.siidheeh.sh", "http://localhost:3001"],
+  optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.post("/metrics", cors(corsOptions), bodyParser.text(), (req, res) => {
+  let metrics = {};
+  try {
+    metrics = JSON.parse(req.body);
+  } catch (e) {
+    debug(e, req.body);
+    res.sendStatus(400);
+    return;
+  }
+  debug("received metrics", metrics);
+  res.sendStatus(200);
+});
+
 app.get("/", (req, res) => {
   //res.sendFile(__dirname + "/index.html");
-  res.send(204);
+  res.sendStatus(204);
 });
 
 http.listen(PORT, () => {

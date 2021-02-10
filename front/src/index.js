@@ -4,6 +4,7 @@ import ReactDOM from "react-dom";
 import "./index.css";
 import App from "./Main";
 import reportWebVitals from "./reportWebVitals";
+import { debug } from "./util";
 
 /*
 inspect({
@@ -22,4 +23,18 @@ ReactDOM.render(
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-//reportWebVitals(console.log);
+reportWebVitals((metric) => {
+  try {
+    const body = JSON.stringify(metric);
+    const url = "http://localhost:3002/metrics";
+    debug(body);
+    // Use `navigator.sendBeacon()` if available, falling back to `fetch()`.
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, body);
+    } else {
+      fetch(url, { body, method: "POST", keepalive: true });
+    }
+  } catch (e) {
+    debug(e);
+  }
+});

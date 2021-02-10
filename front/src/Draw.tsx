@@ -20,6 +20,7 @@ import Canvas from "./Canvas";
 import { CompactPicker } from "react-color";
 
 import { serialiseStrokes, deserialiseStrokes, debug } from "./util";
+import { getBrushCursor } from "./brush";
 
 interface DrawProps {
   [key: string]: any;
@@ -49,14 +50,17 @@ const Draw = (props: DrawProps) => {
     () => deserialiseStrokes(JSON.parse(rawDefaultPic)),
     []
   );
-  const [forcedHistory, setForcedHistory] = useState(defaultPic);
-  const strokeHistory = useRef(defaultPic);
+  const [displayedHistory, setDisplayedHistory] = useState(defaultPic); // the strokes currently displayed (previously forcedHistory)
+  const [strokeHistory, setStrokeHistory] = useState(defaultPic); // the strokes currently tracked (undo/redo)
 
   const [description, setDescription] = useState("");
   const [inputValid, setInputValid] = useState({ description: false });
 
   const undoLevel = useRef(0);
-  const [forceUpdate, setForceUpdate] = useState(false);
+
+  // refresh brushCursor on colour change
+  // useMemo calls this twice on strictMode/dev, apparently its a testing feature
+  const brushCursor = useMemo(() => getBrushCursor(brushColour), [brushColour]);
 
   const handleColorChange = (colour: string) => setBrushColour(colour);
   const ColourPicker = CompactPicker;
@@ -70,9 +74,9 @@ const Draw = (props: DrawProps) => {
   };
 
   const handleSubmit = () => {
-    if (inputValid.description /*&& strokeHistory.current.length > 0*/)
+    if (inputValid.description /*&& displayedHistory.length > 0*/)
       getProp("onSubmit")({
-        pic: strokeHistory.current,
+        pic: displayedHistory,
         label: description,
       });
   };
@@ -84,42 +88,42 @@ const Draw = (props: DrawProps) => {
   };
 
   const sliceHistory = () =>
-    strokeHistory.current.slice(
-      0,
-      strokeHistory.current.length - undoLevel.current
-    );
+    strokeHistory.slice(0, strokeHistory.length - undoLevel.current);
 
   const handleUndo = () => {
-    undoLevel.current = Math.min(
-      strokeHistory.current.length,
-      undoLevel.current + 1
-    );
+    undoLevel.current = Math.min(strokeHistory.length, undoLevel.current + 1);
     debug("handleUndo", undoLevel.current);
-    setForcedHistory(sliceHistory());
+    setDisplayedHistory(sliceHistory());
   };
 
   const handleRedo = () => {
     undoLevel.current = Math.max(0, undoLevel.current - 1);
     debug("handleRedo", undoLevel.current);
-    setForcedHistory(sliceHistory());
+    setDisplayedHistory(sliceHistory());
   };
 
   const handleErase = () => {
-    if (undoLevel.current >= strokeHistory.current.length) {
+    if (undoLevel.current >= strokeHistory.length) {
       undoLevel.current = 0; // the canvas was already cleared by undo-ing
-      strokeHistory.current = []; // manually commit
+      setStrokeHistory([]); // manually commit
     } else {
-      strokeHistory.current = sliceHistory(); // clear future strokes
+      setStrokeHistory(sliceHistory()); // clear future strokes
       undoLevel.current = -1; // a hack to restore previous strokeHistory on undo, if not yet committed
     }
     debug("handleErase", undoLevel.current);
-    setForcedHistory([]);
+    setDisplayedHistory([]);
   };
 
-  const handleStrokeDone = () => {
+  const handleStrokeDone = (stroke: any) => {
+    if (!stroke) return;
+    debug("handleStrokeDone");
+    let newHistory = [
+      ...(undoLevel.current > 0 ? sliceHistory() : strokeHistory),
+      stroke,
+    ];
     undoLevel.current = 0;
-    debug("handlePaintDone", undoLevel.current);
-    setForceUpdate(!forceUpdate); // a hack to force rerender to show updated undoLevel
+    setStrokeHistory(newHistory);
+    setDisplayedHistory(newHistory);
   };
 
   return (
@@ -160,12 +164,17 @@ const Draw = (props: DrawProps) => {
               margin: "auto",
               display: "flex",
               flexDirection: "column",
-              justifyContent: "flex-start",
+              cursor: eraseMode
+                ? `url("${encodeURI(
+                    `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'>${eraserIcon.body}</svg>`
+                  )}") 5 20, auto`
+                : `url("${encodeURI(
+                    `data:image/svg+xml;utf8,${brushCursor}`
+                  )}") 0 24, auto`,
             }}
           >
             <Canvas
-              strokeHistory={strokeHistory}
-              forcedHistory={forcedHistory}
+              displayedHistory={displayedHistory}
               brushColour={brushColour}
               brushRadius={brushRadius}
               eraseMode={eraseMode}
@@ -192,7 +201,10 @@ const Draw = (props: DrawProps) => {
         />
         <div style={{ margin: "10px" }} />
         <ButtonGroup>
-          <Tooltip title="Toggle eraser" aria-label="erase">
+          <Tooltip
+            title={eraseMode ? "Stop erasing" : "Start erasing"}
+            aria-label="erase"
+          >
             <ToggleButton
               value="check"
               selected={eraseMode}
@@ -202,24 +214,18 @@ const Draw = (props: DrawProps) => {
               <Icon icon={eraserIcon} />
             </ToggleButton>
           </Tooltip>
-          <Tooltip title="Clear" aria-label="clear">
-            <Button onClick={handleErase}>
-              <DeleteIcon />
-            </Button>
-          </Tooltip>
-          <Tooltip title="Undo" aria-label="undo">
-            <Button
-              onClick={handleUndo}
-              disabled={undoLevel.current >= strokeHistory.current.length}
-            >
-              <UndoIcon />
-            </Button>
-          </Tooltip>
-          <Tooltip title="Redo" aria-label="redo">
-            <Button onClick={handleRedo} disabled={undoLevel.current <= 0}>
-              <RedoIcon />
-            </Button>
-          </Tooltip>
+          <Button onClick={handleErase} disabled={strokeHistory.length <= 0}>
+            <DeleteIcon />
+          </Button>
+          <Button
+            onClick={handleUndo}
+            disabled={undoLevel.current >= strokeHistory.length}
+          >
+            <UndoIcon />
+          </Button>
+          <Button onClick={handleRedo} disabled={undoLevel.current <= 0}>
+            <RedoIcon />
+          </Button>
         </ButtonGroup>
 
         <div
@@ -233,7 +239,7 @@ const Draw = (props: DrawProps) => {
             <Typography
               variant="h6"
               onClick={() =>
-                debug(JSON.stringify(serialiseStrokes(strokeHistory.current)))
+                debug(JSON.stringify(serialiseStrokes(displayedHistory)))
               }
             >
               What did you draw? 👀

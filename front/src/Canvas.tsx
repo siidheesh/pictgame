@@ -1,4 +1,4 @@
-import { MutableRefObject, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { debug } from "./util";
 export interface Stroke {
   colour: string;
@@ -7,16 +7,16 @@ export interface Stroke {
 }
 
 export interface Props {
-  strokeHistory?: MutableRefObject<Stroke[]>;
-  forcedHistory: Stroke[];
+  displayedHistory: Stroke[];
   brushRadius?: number;
   brushColour?: string;
   eraseMode?: boolean;
   locked?: boolean;
+  onStrokeDone?: (currentStroke: Stroke) => void;
 }
 
 const defaultProps: any = {
-  strokeHistory: { current: [] },
+  displayedHistory: [],
   brushRadius: 5,
   brushColour: "black",
   eraseMode: false,
@@ -35,8 +35,7 @@ function Canvas(props: any) {
 
   const currentStroke = useRef({} as Stroke);
 
-  const strokeHistory = getProp("strokeHistory");
-  const forcedHistory = getProp("forcedHistory");
+  const displayedHistory = getProp("displayedHistory"); // previously forcedHistory
 
   const brushColour = getProp("brushColour");
   const brushRadius = getProp("brushRadius");
@@ -46,8 +45,7 @@ function Canvas(props: any) {
   const onStrokeDone = getProp("onStrokeDone");
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
-    drawMode = useRef(false),
-    forcedChangeOccured = useRef(false);
+    drawMode = useRef(false);
 
   /**
    * Converts client coords (mouse/touch) to canvas-rel coords
@@ -110,23 +108,7 @@ function Canvas(props: any) {
     if (!drawMode.current) return;
     drawMode.current = false;
 
-    if (forcedChangeOccured.current) {
-      debug("committing forcedHistory to strokeHistory");
-      strokeHistory.current = forcedHistory; // commit the undo/redo transaction
-      forcedChangeOccured.current = false;
-    }
-
-    if (currentStroke)
-      //setStrokeHistory([
-      strokeHistory.current = [
-        // store the tracked stroke
-        ...strokeHistory.current,
-        currentStroke.current,
-      ]; //);
-    //setCurrentStroke({} as Stroke);
-    currentStroke.current = {} as Stroke;
-
-    onStrokeDone();
+    onStrokeDone(currentStroke.current);
   }
 
   /**
@@ -173,13 +155,12 @@ function Canvas(props: any) {
   }
 
   useEffect(() => {
-    //clear and redraw on forcedHistory change
+    //clear and redraw on displayedHistory change
     const ctx = canvasRef.current.getContext("2d");
     if (ctx !== null) ctx.clearRect(0, 0, 400, 400);
-    forcedHistory.forEach((stroke: Stroke) => drawOnCanvas(stroke, false)); //manually call draw function
-    forcedChangeOccured.current = true;
+    displayedHistory.forEach((stroke: Stroke) => drawOnCanvas(stroke, false)); //manually call draw function
     debug("Canvas redrew");
-  }, [forcedHistory, strokeHistory]);
+  }, [displayedHistory]);
 
   return (
     <canvas
