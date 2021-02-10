@@ -1,4 +1,4 @@
-import { inspect } from "@xstate/inspect";
+//import { inspect } from "@xstate/inspect";
 import React from "react";
 import ReactDOM from "react-dom";
 import "./index.css";
@@ -26,7 +26,7 @@ ReactDOM.render(
 reportWebVitals((metric) => {
   try {
     const body = JSON.stringify(metric);
-    const url = "http://localhost:3002/metrics";
+    const url = "https://api.siidhee.sh/metrics";
     debug(body);
     // Use `navigator.sendBeacon()` if available, falling back to `fetch()`.
     if (navigator.sendBeacon) {

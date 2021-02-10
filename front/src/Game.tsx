@@ -36,7 +36,7 @@ const Guess = (props: any) => {
         display: "grid",
         height: "100%",
         //border: "green dashed",
-        padding: "50px 10px 50px 10px",
+        padding: "70px 10px 50px 10px",
       }}
     >
       <div
@@ -201,7 +201,7 @@ const Result = React.memo((props: any) => {
           display: "grid",
           height: "100%",
           //border: "green dashed",
-          padding: "50px 5px 50px 5px",
+          padding: "70px 5px 50px 5px",
         }}
       >
         <div

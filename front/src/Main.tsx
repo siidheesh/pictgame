@@ -117,7 +117,7 @@ const OptionsFAB = (props: any) => {
         hidden={false}
         icon={<SettingsIcon />}
         open={fabOpen}
-        direction={"down"}
+        direction={"right"}
         onClick={() => setFabOpen(!fabOpen)}
       >
         <SpeedDialAction

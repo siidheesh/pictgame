@@ -284,7 +284,7 @@ pub.del(`${CLIENT_NAMES_KEY}_${instanceId}`); // clear client list on start
 app.set("trust proxy", 1);
 
 var corsOptions = {
-  origin: ["https://app.siidheeh.sh", "http://localhost:3001"],
+  origin: ["https://app.siidhee.sh", "http://localhost:3001"],
   optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
