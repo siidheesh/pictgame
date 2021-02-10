@@ -29,3 +29,6 @@ yarn-error.log*
 .eslintcache/back/nodejs/consts.js
 front/.eslintcache
 front/src/.prettierrc
+back/nodejs/package-lock.json
+back/package-lock.json
+front/package-lock.json

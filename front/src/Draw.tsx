@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   Button,
   ButtonGroup,
@@ -18,13 +18,11 @@ import Canvas from "./Canvas";
 import { Stroke } from "./Canvas";
 import { CompactPicker } from "react-color";
 
-import { serialiseStrokes, deserialiseStrokes } from "./util";
+import { serialiseStrokes, deserialiseStrokes, debug } from "./util";
 
 interface DrawProps {
   [key: string]: any;
 }
-
-const defaultPic = deserialiseStrokes(JSON.parse("[]"));
 
 const Draw = (props: DrawProps) => {
   const defaultProps: DrawProps = {
@@ -32,7 +30,6 @@ const Draw = (props: DrawProps) => {
     brushRadiusMin: 1,
     brushRadiusMax: 20,
     brushRadiusStep: 1,
-    canvasSize: 300,
     brushColour: "black",
   };
   const getProp = (propName: string) => {
@@ -43,6 +40,7 @@ const Draw = (props: DrawProps) => {
   const [brushColour, setBrushColour] = useState(getProp("brushColour"));
   const [brushRadius, setbrushRadius] = useState(getProp("brushRadius"));
 
+  const defaultPic = useMemo(() => deserialiseStrokes(JSON.parse("[]")), []);
   //const [strokeHistory, setStrokeHistory] = useState([] as Stroke[]);
   const [forcedHistory, setForcedHistory] = useState(defaultPic);
   const strokeHistory = useRef(defaultPic);
@@ -59,6 +57,20 @@ const Draw = (props: DrawProps) => {
     const newDesc = e.target.value;
     setDescription(newDesc);
     setInputValid({ description: !!newDesc });
+  };
+
+  const handleSubmit = () => {
+    if (inputValid.description /*&& strokeHistory.current.length > 0*/)
+      props.onSubmit({
+        pic: strokeHistory.current,
+        label: description,
+      });
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e?.key === "ENTER" || e?.code === "Enter" || e?.keyCode === 13) {
+      handleSubmit();
+    }
   };
 
   return (
@@ -146,6 +158,7 @@ const Draw = (props: DrawProps) => {
                 selected={eraseMode}
                 onChange={() => setEraseMode(!eraseMode)}
                 style={{ marginLeft: "20px" }}
+                size="large"
               >
                 <Icon icon={eraserIcon} />
               </ToggleButton>
@@ -161,15 +174,14 @@ const Draw = (props: DrawProps) => {
           style={{
             textAlign: "center",
             marginBottom: "10px",
+            //display: strokeHistory.current.length > 0 ? "block" : "none", // this wont work, ref changes != rerender
           }}
         >
           <div style={{ marginTop: "20px", marginBottom: "10px" }}>
             <Typography
               variant="h6"
               onClick={() =>
-                console.log(
-                  JSON.stringify(serialiseStrokes(strokeHistory.current))
-                )
+                debug(JSON.stringify(serialiseStrokes(strokeHistory.current)))
               }
             >
               What did you draw? 👀
@@ -182,18 +194,10 @@ const Draw = (props: DrawProps) => {
             onChange={handleDescChange}
             helperText={!inputValid.description && "Must be filled"}
             error={!inputValid.description}
+            onKeyPress={handleKeyPress}
           />
         </div>
-        <Button
-          color="primary"
-          onClick={() => {
-            inputValid.description &&
-              props.onSubmit({
-                pic: strokeHistory.current,
-                label: description,
-              });
-          }}
-        >
+        <Button color="primary" onClick={handleSubmit}>
           Submit
         </Button>
       </div>

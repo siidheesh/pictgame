@@ -40,6 +40,7 @@ const msgType = Object.freeze({
   MATCH_DECREE: 4,
   NAME_REQUEST: 5,
   NAME_DECREE: 6,
+  INFORM_DISCONNECT: 7,
 });
 
 const playerLevelBinLength = 3;
@@ -57,7 +58,8 @@ const pubMsgIsValid = (msg) =>
       "allowLower" in msg[2]) ||
     (msg[0] === msgType.MATCH_DECREE && msg.length === 3) ||
     (msg[0] === msgType.NAME_REQUEST && msg.length === 3) ||
-    (msg[0] === msgType.NAME_DECREE && msg.length === 3));
+    (msg[0] === msgType.NAME_DECREE && msg.length === 3) ||
+    (msg[0] === msgType.INFORM_DISCONNECT && msg.length === 3));
 
 const processClientMsg = (origMsg) => {
   let msg = null;
@@ -177,8 +179,19 @@ const processClientMsg = (origMsg) => {
       io.sockets.sockets.forEach((socket) => {
         if (found) return;
         else if (socket && socket.username === msg[2]) {
-          //debug(`we have ${msg[2]}, sending ${msg[0]}`);
           socket.emit("MATCH_DECREE", msg[1]);
+          found = true;
+        }
+      });
+      break;
+    case msgType.INFORM_DISCONNECT: // msg: [type, source, target]
+      // TODO: if a server crashes, the leader could publish all the clientnames of said server, informing their opps, if any, of their disconnection
+      io.sockets.sockets.forEach((socket) => {
+        if (found) return;
+        else if (socket && socket.username === msg[2]) {
+          // inform target that source has disconnected, and if target is matchedWith source, clear that as well
+          if (socket?.matchedWith === msg[1]) delete socket.matchedWith;
+          socket.emit("INFORM_DISCONNECT", msg[1]);
           found = true;
         }
       });
@@ -223,6 +236,15 @@ io.on("connection", (socket) => {
       );
   });
 
+  socket.on("MATCHED", (name) => {
+    // client tells us who to inform if/when they deconnect
+    socket.matchedWith = name;
+  });
+
+  socket.on("UNMATCHED", () => {
+    delete socket.matchedWith;
+  });
+
   socket.on("DATA", (target, data) => {
     socket.username &&
       pub.publish(
@@ -232,9 +254,19 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    socket.username &&
+    if (socket.username) {
+      socket.matchedWith &&
+        pub.publish(
+          clientChannel,
+          JSON.stringify([
+            msgType.INFORM_DISCONNECT,
+            socket.username,
+            socket.matchedWith,
+          ])
+        );
       pub.srem(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
-    debug(`${socket.username} disconnected`);
+      debug(`${socket.username} disconnected`);
+    }
   });
 
   socket.emit("INIT");

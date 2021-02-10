@@ -1,5 +1,5 @@
 import { MutableRefObject, useState, useRef, useEffect } from "react";
-
+import { debug } from "./util";
 export interface Stroke {
   colour: string;
   brushRadius: number;
@@ -7,35 +7,46 @@ export interface Stroke {
 }
 
 export interface Props {
-  strokeHistory: MutableRefObject<Stroke[]>;
-  onStrokeHistoryChange: (_: Stroke[]) => void; //React.Dispatch<React.SetStateAction<Stroke[]>>;
+  strokeHistory?: MutableRefObject<Stroke[]>;
+  onStrokeHistoryChange?: (_: Stroke[]) => void; //React.Dispatch<React.SetStateAction<Stroke[]>>;
   forcedHistory: Stroke[];
-  brushRadius: number;
-  brushColour: string;
-  eraseMode: boolean;
+  brushRadius?: number;
+  brushColour?: string;
+  eraseMode?: boolean;
   locked?: boolean;
 }
+
+const defaultProps: any = {
+  strokeHistory: { current: [] },
+  onStrokeHistoryChange: () => {},
+  brushRadius: 5,
+  brushColour: "black",
+  eraseMode: false,
+  locked: false,
+};
 
 /**
  * Component for a canvas to draw and show drawings on
  *
  * @component
  */
-function Canvas(props: Props) {
-  const [currentStroke, setCurrentStroke] = useState({} as Stroke); // change to useRef
+function Canvas(props: any) {
+  const getProp = (prop: string) =>
+    props[prop] ?? defaultProps[prop] ?? undefined;
 
-  const strokeHistory = props.strokeHistory;
-  const setStrokeHistory = props.onStrokeHistoryChange;
-  const forcedHistory = props.forcedHistory;
+  //const [currentStroke, setCurrentStroke] = useState({} as Stroke); // change to useRef
+  const currentStroke = useRef({} as Stroke);
 
-  const brushColour = props.brushColour;
-  const brushRadius = props.brushRadius;
-  const eraseMode = props.eraseMode;
-  const isLocked = "locked" in props;
+  const strokeHistory = getProp("strokeHistory");
+  const setStrokeHistory = getProp("onStrokeHistoryChange");
+  const forcedHistory = getProp("forcedHistory");
+
+  const brushColour = getProp("brushColour");
+  const brushRadius = getProp("brushRadius");
+  const eraseMode = getProp("eraseMode");
+  const isLocked = getProp("locked");
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
-    lastX = useRef(0),
-    lastY = useRef(0),
     drawMode = useRef(false);
 
   /**
@@ -62,15 +73,14 @@ function Canvas(props: Props) {
     drawMode.current = true;
 
     const [canvasX, canvasY] = convertCoords(x, y);
-    lastX.current = canvasX;
-    lastY.current = canvasY;
 
-    setCurrentStroke({
+    ///setCurrentStroke({
+    currentStroke.current = {
       // start tracking stroke
       colour: eraseMode ? "#ffffff" : brushColour,
       brushRadius: brushRadius,
       points: [[canvasX, canvasY]],
-    });
+    }; //);
   }
 
   function handlePaint(
@@ -83,14 +93,14 @@ function Canvas(props: Props) {
 
     const [canvasX, canvasY] = convertCoords(x, y);
 
-    setCurrentStroke({
+    ///setCurrentStroke({
+    currentStroke.current = {
       // append canvasXY to current stroke
-      ...currentStroke,
-      points: [...currentStroke.points, [canvasX, canvasY]],
-    });
+      ...currentStroke.current,
+      points: [...currentStroke.current.points, [canvasX, canvasY]],
+    }; //);
 
-    lastX.current = canvasX;
-    lastY.current = canvasY;
+    drawOnCanvas();
   }
 
   function handlePaintEnd() {
@@ -101,9 +111,10 @@ function Canvas(props: Props) {
       setStrokeHistory([
         // store the tracked stroke
         ...strokeHistory.current,
-        currentStroke,
+        currentStroke.current,
       ]);
-    setCurrentStroke({} as Stroke);
+    //setCurrentStroke({} as Stroke);
+    currentStroke.current = {} as Stroke;
   }
 
   /**
@@ -112,8 +123,10 @@ function Canvas(props: Props) {
    * @param {Stroke=currentStroke} stroke The stroke to draw
    * @param {boolean=true} lastPointOnly Whether to draw the stroke's last point, or all its points
    */
-  function drawOnCanvas(stroke: Stroke = currentStroke, lastPointOnly = true) {
-    //
+  function drawOnCanvas(
+    stroke: Stroke = currentStroke.current,
+    lastPointOnly = true
+  ) {
     const ctx = canvasRef.current.getContext("2d");
     if (ctx === null || !stroke || !stroke.points) {
       return;
@@ -147,18 +160,17 @@ function Canvas(props: Props) {
     }
   }
 
-  useEffect(drawOnCanvas, [currentStroke]); // drawOnCanvas on currentStroke change
+  debug("Canvas render");
 
-  useEffect(() => console.log("*****************RENDER**************"));
+  //useEffect(drawOnCanvas, [currentStroke]); // drawOnCanvas on currentStroke change
 
   useEffect(() => {
     //clear and redraw on forcedHistory change
-    console.log("FORCED HISTORY REDRAW**************************");
-    console.log(forcedHistory);
     const ctx = canvasRef.current.getContext("2d");
     if (ctx !== null) ctx.clearRect(0, 0, 400, 400);
-    forcedHistory.forEach((stroke) => drawOnCanvas(stroke, false)); //manually call draw function
+    forcedHistory.forEach((stroke: Stroke) => drawOnCanvas(stroke, false)); //manually call draw function
     setStrokeHistory(forcedHistory);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forcedHistory]);
 
   return (
@@ -166,7 +178,10 @@ function Canvas(props: Props) {
       ref={canvasRef}
       height={400}
       width={400}
-      style={{ touchAction: isLocked ? "auto" : "none" }} // enabled touch scrolling if canvas is locked
+      style={{
+        touchAction: isLocked ? "auto" : "none",
+        imageRendering: "pixelated",
+      }} // enabled touch scrolling if canvas is locked
       onMouseDown={(e) =>
         handlePaintStart(
           e.clientX,

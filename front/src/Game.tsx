@@ -63,15 +63,7 @@ const Guess = (props: any) => {
                 justifyContent: "center",
               }}
             >
-              <Canvas
-                strokeHistory={oppData.pic}
-                onStrokeHistoryChange={() => {}}
-                forcedHistory={oppData.pic}
-                brushColour={"black"}
-                brushRadius={5}
-                eraseMode={false}
-                locked
-              />
+              <Canvas forcedHistory={oppData.pic} locked />
             </div>
           </Paper>
         </div>
@@ -105,7 +97,7 @@ const Guess = (props: any) => {
   );
 };
 
-const AwaitBob = (props: any) => {
+const AwaitBob = React.memo((props: any) => {
   const { name } = props;
 
   return (
@@ -136,9 +128,9 @@ const AwaitBob = (props: any) => {
       </div>
     </div>
   );
-};
+});
 
-const ResultRematchWait = (props: any) => (
+const ResultRematchWait = React.memo((props: any) => (
   <div
     style={{
       display: "flex",
@@ -152,9 +144,9 @@ const ResultRematchWait = (props: any) => (
     </div>
     <CircularProgress color="primary" />
   </div>
-);
+));
 
-const ResultRematchDecide = (props: any) => (
+const ResultRematchDecide = React.memo((props: any) => (
   <div
     style={{
       display: "flex",
@@ -167,11 +159,11 @@ const ResultRematchDecide = (props: any) => (
       <Typography variant="h6">{props.name} wants a rematch ❗</Typography>
     </div>
     <div>
-      <Button onClick={props.onAccept}>✔️</Button>
+      <Button onClick={props.onAccept}>✅</Button>
       <Button onClick={props.onReject}>❌</Button>
     </div>
   </div>
-);
+));
 
 const Result = (props: any) => {
   const {
@@ -182,13 +174,12 @@ const Result = (props: any) => {
     bobName,
     onRematch,
     onRematchAck,
+    onNewGame,
     onQuit,
     rematchModal,
     rematchModalType,
     rematchAvailable,
   } = props;
-
-  console.log(props);
 
   return (
     <React.Fragment>
@@ -260,15 +251,7 @@ const Result = (props: any) => {
                       justifyContent: "center",
                     }}
                   >
-                    <Canvas
-                      strokeHistory={oppData.pic}
-                      onStrokeHistoryChange={() => {}}
-                      forcedHistory={oppData.pic}
-                      brushColour={"black"}
-                      brushRadius={5}
-                      eraseMode={false}
-                      locked
-                    />
+                    <Canvas forcedHistory={oppData.pic} locked />
                   </div>
                 </Paper>
               </div>
@@ -303,15 +286,7 @@ const Result = (props: any) => {
                       justifyContent: "center",
                     }}
                   >
-                    <Canvas
-                      strokeHistory={aliceData.pic}
-                      onStrokeHistoryChange={() => {}}
-                      forcedHistory={aliceData.pic}
-                      brushColour={"black"}
-                      brushRadius={5}
-                      eraseMode={false}
-                      locked
-                    />
+                    <Canvas forcedHistory={aliceData.pic} locked />
                   </div>
                 </Paper>
               </div>
@@ -333,9 +308,9 @@ const Result = (props: any) => {
             }}
           >
             <Button onClick={onRematch} disabled={!rematchAvailable}>
-              Ask for Rematch
+              {rematchAvailable ? "Ask for Rematch" : "Opponent has left"}
             </Button>
-            <div style={{ margin: "10px" }} />
+            <Button onClick={onNewGame}>New Game</Button>
             <Button onClick={onQuit}>Quit</Button>
           </div>
         </div>
@@ -343,6 +318,27 @@ const Result = (props: any) => {
     </React.Fragment>
   );
 };
+
+const OppLeftGame = React.memo((props: any) => (
+  <Dialog open={props.open} aria-labelledby="" aria-describedby="">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        margin: "20px",
+      }}
+    >
+      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <Typography variant="h6">{props.name} left the game :(</Typography>
+      </div>
+      <div>
+        <Button onClick={props.onMatch}>New Game</Button>
+        <Button onClick={props.onQuit}>Quit</Button>
+      </div>
+    </div>
+  </Dialog>
+));
 
 const Game = (props: any) => {
   const { state, send } = props;
@@ -354,25 +350,24 @@ const Game = (props: any) => {
   const waitingForGuess = m("game.guessing.alice.ready");
   const isEndGame = m("game.result");
 
+  let component = <div>game: unhandled {state.toStrings().join(" ")}</div>;
+
   if (isDrawing) {
-    return (
+    component = (
       <Draw
-        name={state.context.name}
+        name={state.context.target}
         onSubmit={(data: any) => send({ type: "SUBMIT_PIC", data })}
-        onEvent={() => {}}
       />
     );
-  }
-
-  if (waitingForDrawing || waitingForGuess) {
-    return <AwaitBob name={state.context.target} drawing={waitingForDrawing} />;
-  }
-
-  if (isGuessing) {
+  } else if (waitingForDrawing || waitingForGuess) {
+    component = (
+      <AwaitBob name={state.context.target} drawing={waitingForDrawing} />
+    );
+  } else if (isGuessing) {
     const handleGuess = (guess: string) =>
       send({ type: "ALICE_GUESSED", guess });
 
-    return (
+    component = (
       <Guess
         onGuess={handleGuess}
         oppData={{ ...state.context.oppData, name: state.context.target }}
@@ -387,19 +382,29 @@ const Game = (props: any) => {
       aliceData: state.context.aliceData,
       oppData: state.context.oppData,
       bobName: state.context.target,
-      rematchAvailable: !m("game.result.noRematch"),
+      rematchAvailable:
+        !state.context.oppDisconnected && !m("game.result.noRematch"),
       rematchModal:
         m("game.result.waitForBob") || m("game.result.waitForDecision"),
       rematchModalType: m("game.result.waitForBob"),
       onRematch: () => send("REMATCH"),
       onRematchAck: () => send("REMATCH_OK"),
+      onNewGame: () => send("GOTO_MATCH"),
       onQuit: () => send("QUIT"),
     };
-
     return <Result {...resultProps} />;
-  }
-
-  return <div>game: unhandled {state.toStrings().join(" ")}</div>;
+  } else
+    return (
+      <React.Fragment>
+        <OppLeftGame
+          open={state.context.oppDisconnected}
+          name={state.context.name}
+          onMatch={() => send("GOTO_MATCH")}
+          onQuit={() => send("QUIT")}
+        />
+        {component}
+      </React.Fragment>
+    );
 };
 
 export default Game;

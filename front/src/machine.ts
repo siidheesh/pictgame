@@ -17,6 +17,7 @@ import {
   getRandInRange,
   serialiseStrokes,
   deserialiseStrokes,
+  debug,
 } from "./util";
 
 const socket = io("wss://api.siidhee.sh");
@@ -36,7 +37,7 @@ const errors = [
     [errorType]: {
       ...(!isRecoverable && { target: "error" }), // transit to error if !isRecoverable
       actions: [
-        console.log,
+        debug,
         assign({
           errorMsg: !isRecoverable ? errorMessage : `Error type '${errorType}'`,
         }),
@@ -68,6 +69,7 @@ const mainMachine = createMachine<MainContext>(
       oppData: undefined,
       aliceGuess: "",
       bobGuess: "",
+      oppDisconnected: false,
     },
     on: {
       DISCONNECT: [
@@ -258,7 +260,7 @@ const mainMachine = createMachine<MainContext>(
                   aliceTest: {
                     initial: "sendTest",
                     entry: assign({
-                      testData: (context, event) =>
+                      testData: (_) =>
                         window.crypto.getRandomValues(new Uint8Array(10)),
                     }),
                     states: {
@@ -376,12 +378,20 @@ const mainMachine = createMachine<MainContext>(
       game: {
         id: "game",
         initial: "round",
-        entry: "clearOppData",
-        exit: "clearOppData",
+        entry: ["informMatched", "clearOppData"],
+        exit: ["informUnmatched", "clearOppData"],
         on: {
           QUIT: {
             target: "idle",
             actions: "sendQuit",
+          },
+          GOTO_MATCH: {
+            target: "match",
+            actions: "sendQuit",
+          },
+          INFORM_DISCONNECT: {
+            actions: "setOppDisconnected",
+            cond: (context, event) => context.target === event.source,
           },
         },
         states: {
@@ -473,6 +483,10 @@ const mainMachine = createMachine<MainContext>(
                   REMATCH: { target: "waitForBob", actions: "sendRematchReq" },
                   REMATCH_REQ: "waitForDecision",
                   BOB_QUIT: "noRematch",
+                  INFORM_DISCONNECT: {
+                    target: "noRematch",
+                    cond: (context, event) => context.target === event.source,
+                  },
                 },
               },
               waitForBob: {
@@ -480,6 +494,10 @@ const mainMachine = createMachine<MainContext>(
                   REMATCH_OK: "ready",
                   REMATCH_REQ: "ready",
                   BOB_QUIT: "noRematch",
+                  INFORM_DISCONNECT: {
+                    target: "noRematch",
+                    cond: (context, event) => context.target === event.source,
+                  },
                 },
               },
               waitForDecision: {
@@ -488,8 +506,13 @@ const mainMachine = createMachine<MainContext>(
                   QUIT: { target: "#idle", actions: "sendQuit" },
                 },
               },
-              noRematch: {},
-              ready: { type: "final" },
+              noRematch: {
+                entry: "setOppDisconnected",
+                on: {
+                  QUIT: "#idle", //cant rely on game's QUIT handler as we reset oppDisconnected in game.exit before calling sendQuit
+                },
+              },
+              ready: { type: "final" }, //goto game.round for rematch
             },
           },
         },
@@ -542,11 +565,15 @@ const mainMachine = createMachine<MainContext>(
         }),
       sendTestAck: (context, _) =>
         socket.emit("DATA", context.target, { type: "MATCHTEST_ACK" }),
-      sendHeartBeat: (context, _) =>
-        socket.emit("DATA", context.target, { type: "HEARTBEAT" }),
+      informMatched: (context, _) => socket.emit("MATCHED", context.target),
+      informUnmatched: () => socket.emit("UNMATCHED"),
       sendQuit: (context, _) =>
         socket.emit("DATA", context.target, { type: "BOB_QUIT" }),
-      clearOppData: assign({ oppData: (_) => undefined }),
+      clearOppData: assign({
+        oppData: (_) => undefined,
+        oppDisconnected: (_) => false,
+      }),
+      setOppDisconnected: assign({ oppDisconnected: (_) => true }),
       sendPic: (context, event) =>
         encryptObject(context.sharedKey, {
           type: "BOB_DREW",
@@ -575,16 +602,16 @@ const mainMachine = createMachine<MainContext>(
 export const mainService = interpret(mainMachine, {
   devTools: true,
 })
-  .onEvent((event) => console.log("event", event))
+  .onEvent((event) => debug("event", event))
   /*.onTransition((state) => {
-    console.log("stateΔ", state.value, state);
+    debug("stateΔ", state.value, state);
   })*/
   .start();
 
 const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
-  console.log("processData", source, payload);
+  debug("processData", source, payload);
   if (payload.type) {
-    console.log(`received a ${payload.type} from ${source}`);
+    debug(`received a ${payload.type} from ${source}`);
     switch (payload.type) {
       case "MATCHCHECK":
         if (!payload.key) break;
@@ -648,7 +675,7 @@ const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
         break;
     }
   } else if (payload.iv && payload.enc && mainService.state.context.sharedKey) {
-    console.log(`received encrypted DATA from ${source}`);
+    debug(`received encrypted DATA from ${source}`);
     decryptObject(
       mainService.state.context.sharedKey,
       payload.iv,
@@ -657,30 +684,32 @@ const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
   }
 };
 
+socket.on("connect", () => socket.emit("HELLO"));
+
 socket.on("INIT", () => mainService.send("CONNECTED"));
 
 socket.on("NAME_DECREE", (name: string) => {
-  console.log("onNAMEDECREE", name);
+  debug("onNAMEDECREE", name);
   mainService.send("NAME_DECREE", { name });
 });
 
 socket.on("MATCH_DECREE", (source: string) => {
-  console.log("onMATCHDECREE", source);
+  debug("onMATCHDECREE", source);
   mainService.send("MATCH_DECREE", { source });
 });
 
 socket.on("DATA", (data: any[]) => {
-  console.log("onDATA", data);
+  debug("onDATA", data);
   if (Array.isArray(data)) {
     processData(data[0], data[1]);
   }
 });
 
+socket.on("INFORM_DISCONNECT", (source: string) => {
+  debug("onINFORM_DISCONNECT", source);
+  mainService.send("INFORM_DISCONNECT", { source });
+});
+
 socket.on("disconnect", () => {
   mainService.send("DISCONNECT");
 });
-
-export const onEvent = (target: string) => (event: any) => {
-  console.log("onEvent invoked", target, event);
-  socket.emit("DATA", target, { type: "GAME", event });
-};

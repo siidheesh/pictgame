@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Stroke } from "./Canvas";
 
+export const __DEV__ = process.env.NODE_ENV === "development";
+
+export const debug = __DEV__ ? console.log : () => {};
+
 export function _arrayBufferToBase64(buffer: ArrayBuffer) {
   var binary = "";
   var bytes = new Uint8Array(buffer);
@@ -42,6 +46,7 @@ export interface MainContext {
   oppData: any;
   aliceGuess: string;
   bobGuess: string;
+  oppDisconnected: boolean;
 }
 
 const serialiseStroke = (stroke: Stroke) => {
@@ -81,7 +86,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): any {
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       // If error also return initialValue
-      console.log(error);
+      debug(error);
       return initialValue;
     }
   });
@@ -99,7 +104,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): any {
       window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       // A more advanced implementation would handle the error case
-      console.log(error);
+      debug(error);
     }
   };
 

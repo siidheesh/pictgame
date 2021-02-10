@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Typography } from "@material-ui/core";
 import CheckCircleOutlineRoundedIcon from "@material-ui/icons/CheckCircleOutlineRounded";
-import { MainContext } from "./util";
+import { MainContext, debug } from "./util";
 
 function CircularProgressWithLabel(props: any) {
   return (
@@ -18,7 +18,7 @@ function CircularProgressWithLabel(props: any) {
         justifyContent="center"
       >
         <Typography variant="h5" component="div" color="textSecondary">
-          {Math.round(props.value / 10)}
+          {Math.round(props.label)}
         </Typography>
       </Box>
     </Box>
@@ -30,13 +30,14 @@ const LookingForPlayers = (props: any) => {
   const [showNoPlayersMsg, setShowNoPlayersMsg] = useState(false);
 
   useEffect(() => {
-    console.log("useff matchmaking");
+    debug("useff matchmaking");
     const h = window.setTimeout(() => {
-      console.log("useff matchmaking cb");
+      debug("useff matchmaking cb");
       setShowNoPlayersMsg(true);
     }, showNoPlayerMsgDelay);
     return () => {
-      console.log("useff matchmaking cleanup");
+      debug("useff matchmaking cleanup");
+      window.clearTimeout(h);
     };
   }, []);
 
@@ -87,16 +88,19 @@ const Acceptance = (props: any) => {
     handleTimeout,
   } = props;
 
-  const maxTime = 10;
+  const maxTime = 9;
   const [timeLeft, setTimeLeft] = useState(maxTime);
 
   useEffect(() => {
     // TODO: move into mainMachine?
-    console.log("useff acceptance", timeLeft);
-    if (timeLeft > 0) {
-      const h = window.setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+    debug("useff acceptance", timeLeft);
+    if (timeLeft >= 0) {
+      const h = window.setTimeout(
+        () => setTimeLeft(timeLeft - 1),
+        timeLeft > 0 ? 1000 : 500
+      );
       return () => {
-        console.log("useff acceptance cleanup", timeLeft);
+        debug("useff acceptance cleanup", timeLeft);
         window.clearTimeout(h);
       };
     } else handleTimeout();
@@ -141,6 +145,7 @@ const Acceptance = (props: any) => {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              padding: "10px",
             }}
           >
             <div
@@ -174,7 +179,7 @@ const Acceptance = (props: any) => {
                 }}
               >
                 <Button onClick={handleAccept} color="primary">
-                  ✔️
+                  ✅
                 </Button>
                 <Button onClick={handleReject} color="secondary">
                   ❌
@@ -190,6 +195,7 @@ const Acceptance = (props: any) => {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              padding: "10px",
             }}
           >
             <div style={{ textAlign: "center", marginBottom: "20px" }}>
@@ -214,8 +220,9 @@ const Acceptance = (props: any) => {
         </div>
         <div style={{ margin: "auto" }}>
           <CircularProgressWithLabel
-            value={(timeLeft / maxTime) * 100}
-            color={timeLeft <= 5 ? "secondary" : "primary"}
+            value={timeLeft > 0 ? (timeLeft / maxTime) * 100 : 100}
+            label={timeLeft}
+            color={timeLeft <= 4 ? "secondary" : "primary"}
           />
         </div>
       </div>

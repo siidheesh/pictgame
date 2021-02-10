@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useService } from "@xstate/react";
 import { mainService } from "./machine";
+import { debug } from "./util";
 import Game from "./Game";
 import Match from "./Match";
 import {
@@ -22,20 +23,18 @@ import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline";
 import { useLocalStorage } from "./util";
 
 const Loading = React.memo((props: any) => (
-  <div
-    style={{
-      position: "absolute",
-      left: "50%",
-      top: "50%",
-      transform: "translate(-50%, -50%)",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-    }}
-  >
-    <CircularProgress />
-    {props.msg}
+  <div style={{ display: "grid", height: "100%", padding: "10px" }}>
+    <div
+      style={{
+        margin: "auto",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      <Typography variant="h6">{props.msg}</Typography>
+      <CircularProgress style={{ marginTop: "10px" }} />
+    </div>
   </div>
 ));
 
@@ -85,6 +84,7 @@ const Start = React.memo((props: any) => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          textAlign: "center",
           //border: "red dashed",
         }}
       >
@@ -145,11 +145,14 @@ const Main = () => {
   const isMatchmaking = m("match");
   const inGame = m("game");
 
-  console.log("main RENDER");
+  debug("main RENdDER");
 
   if (inInit) {
     let msg = "Loading...";
-    if (m("init.prepareSocket.disconnected")) {
+    if (state.context.name) {
+      // we were previously connected
+      msg = "Lost connection to server, re-establishing...";
+    } else if (m("init.prepareSocket.disconnected")) {
       msg = "Establishing connection";
     } else if (m("init.prepareSocket.waitForName")) {
       msg = "Starting session";
