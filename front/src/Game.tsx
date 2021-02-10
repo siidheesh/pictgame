@@ -176,6 +176,7 @@ const Result = (props: any) => {
     onRematchAck,
     onNewGame,
     onQuit,
+    onRematchReject,
     rematchModal,
     rematchModalType,
     rematchAvailable,
@@ -191,7 +192,7 @@ const Result = (props: any) => {
             <ResultRematchDecide
               name={bobName}
               onAccept={onRematchAck}
-              onReject={onQuit}
+              onReject={onRematchReject}
             />
           ))}
       </Dialog>
@@ -389,6 +390,7 @@ const Game = (props: any) => {
       rematchModalType: m("game.result.waitForBob"),
       onRematch: () => send("REMATCH"),
       onRematchAck: () => send("REMATCH_OK"),
+      onRematchReject: () => send("REMATCH_REJECT"),
       onNewGame: () => send("GOTO_MATCH"),
       onQuit: () => send("QUIT"),
     };

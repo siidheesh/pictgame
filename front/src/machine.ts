@@ -494,6 +494,7 @@ const mainMachine = createMachine<MainContext>(
                   REMATCH_OK: "ready",
                   REMATCH_REQ: "ready",
                   BOB_QUIT: "noRematch",
+                  REMATCH_REJECT: "noRematch",
                   INFORM_DISCONNECT: {
                     target: "noRematch",
                     cond: (context, event) => context.target === event.source,
@@ -503,7 +504,10 @@ const mainMachine = createMachine<MainContext>(
               waitForDecision: {
                 on: {
                   REMATCH_OK: { target: "ready", actions: "sendRematchAck" },
-                  QUIT: { target: "#idle", actions: "sendQuit" },
+                  REMATCH_REJECT: {
+                    target: "noRematch",
+                    actions: "sendRematchReject",
+                  },
                 },
               },
               noRematch: {
@@ -522,7 +526,7 @@ const mainMachine = createMachine<MainContext>(
   },
   {
     delays: {
-      matchWait: () => getRandInRange(1500, 2000),
+      matchWait: () => getRandInRange(5000, 8000),
       matchConfirmation: () => getRandInRange(800, 1000),
     },
     actions: {
@@ -595,6 +599,8 @@ const mainMachine = createMachine<MainContext>(
         socket.emit("DATA", context.target, { type: "REMATCH?" }),
       sendRematchAck: (context, _) =>
         socket.emit("DATA", context.target, { type: "REMATCH_OK" }),
+      sendRematchReject: (context, _) =>
+        socket.emit("DATA", context.target, { type: "REMATCH_REJECT" }),
     },
   }
 );
@@ -670,6 +676,9 @@ const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
         break;
       case "REMATCH_OK":
         mainService.send("REMATCH_OK");
+        break;
+      case "REMATCH_REJECT":
+        mainService.send("REMATCH_REJECT");
         break;
       default:
         break;

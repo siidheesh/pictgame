@@ -128,7 +128,11 @@ const processClientMsg = (origMsg) => {
     case msgType.DATA: // msg: [type, source, target, payload]
       io.sockets.sockets.forEach((socket) => {
         if (found) return;
-        else if (socket && socket.username === msg[2]) {
+        else if (
+          socket &&
+          socket.username === msg[2] &&
+          (!socket.matchedWith || socket.matchedWith === msg[1]) // filter DATA if socket has match
+        ) {
           socket.emit("DATA", [msg[1], msg[3]]);
           found = true;
         }

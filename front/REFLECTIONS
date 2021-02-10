@@ -18,5 +18,11 @@ Added prototype code for phi-accrual failure detection, but atm its useless sinc
 Need to find a way to keep checking if the failure is above the phi threshold, and the same time avoid infinite loops due to timing out too fast
 
 9/2/2021:
+
 Began writing the UI a few days ago. Really interesting to see how the need for react is minimised thanks to xstate. Most of the useEffects and useStates so far are for simple messages/timeouts
 Perhaps ill write a svelte ui after this. Still need to optimise Canvas as it performs poorly on mobile
+
+10/2/2021:
+
+Just added an undo/redo feature for the drawing UI. Definitely my most favourite one so far, and the trickiest. Need to understand refs better
+Changed Canvas to go from rerendering on every paint, to not rerendering, to rerendering on a completed brush stroke to facilitate the undo/redo feat.
