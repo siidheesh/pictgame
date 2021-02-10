@@ -114,11 +114,16 @@ const Draw = (props: DrawProps) => {
     setDisplayedHistory([]);
   };
 
+  // TODO: refactor all drawing logic into a statemachine
   const handleStrokeDone = (stroke: any) => {
     if (!stroke) return;
     debug("handleStrokeDone");
     let newHistory = [
-      ...(undoLevel.current > 0 ? sliceHistory() : strokeHistory),
+      ...(undoLevel.current !== -1
+        ? undoLevel.current > 0
+          ? sliceHistory()
+          : strokeHistory
+        : []), //  ignore previous strokes when committing an erase
       stroke,
     ];
     undoLevel.current = 0;
@@ -131,7 +136,7 @@ const Draw = (props: DrawProps) => {
       style={{
         display: "grid",
         height: "100%",
-        padding: "50px 10px 50px 10px",
+        padding: "70px 10px 50px 10px",
         //border: "green dashed",
       }}
     >

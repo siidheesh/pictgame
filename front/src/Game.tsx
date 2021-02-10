@@ -400,7 +400,7 @@ const Game = (props: any) => {
       <React.Fragment>
         <OppLeftGame
           open={state.context.oppDisconnected}
-          name={state.context.name}
+          name={state.context.target}
           onMatch={() => send("GOTO_MATCH")}
           onQuit={() => send("QUIT")}
         />
