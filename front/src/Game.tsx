@@ -16,8 +16,8 @@ const Guess = (props: any) => {
   const [guess, setGuess] = useState("");
   const [inputValid, setInputValid] = useState({ guess: false });
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e?.key === "ENTER" || e?.code === "Enter" || e?.keyCode === 13) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e?.key === "Enter" || e?.code === "Enter" || e?.keyCode === 13) {
       inputValid.guess && onGuess(guess);
     }
   };
@@ -75,7 +75,7 @@ const Guess = (props: any) => {
         <TextField
           label="Your guess"
           variant="outlined"
-          onKeyDown={handleKeyPress}
+          onKeyDown={handleKeyDown}
           value={guess}
           onChange={handleGuessChange}
           helperText={

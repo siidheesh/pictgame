@@ -77,8 +77,8 @@ const Draw = (props: DrawProps) => {
       });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e?.key === "ENTER" || e?.code === "Enter" || e?.keyCode === 13) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e?.key === "Enter" || e?.code === "Enter" || e?.keyCode === 13) {
       handleSubmit();
     }
   };
@@ -250,7 +250,7 @@ const Draw = (props: DrawProps) => {
                 : "Must be filled"
             }
             error={!inputValid.description}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown} //https://stackoverflow.com/questions/22473950/keypress-event-not-firing-in-android-mobile
           />
         </div>
       </div>
