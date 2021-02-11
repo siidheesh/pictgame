@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import {
   Button,
   CircularProgress,
-  Paper,
   TextField,
   Typography,
   Dialog,
+  useMediaQuery,
 } from "@material-ui/core";
 
 import Draw from "./Draw";
@@ -47,20 +47,7 @@ const Guess = (props: any) => {
           {oppData.name} drew this!
         </Typography>
       </div>
-      <div>
-        <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-            }}
-          >
-            <Canvas displayedHistory={oppData.pic} locked />
-          </div>
-        </Paper>
-      </div>
+      <Canvas displayedHistory={oppData.pic} locked />
       <div style={{ margin: "20px" }}>
         <Typography variant="h5" noWrap>
           What could it be? 🤔
@@ -164,6 +151,7 @@ const Result = React.memo((props: any) => {
     rematchModal,
     rematchModalType,
     rematchAvailable,
+    deviceIsSmall,
   } = props;
 
   return (
@@ -211,26 +199,20 @@ const Result = React.memo((props: any) => {
             style={{
               //border: "blue dashed",
               padding: "10px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
             }}
           >
             <div style={{ marginBottom: "20px" }}>
               <Typography variant="h5">Your guess:</Typography>
               <Typography variant="h6">{aliceGuess}</Typography>
             </div>
-            <div>
-              <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
-                <div
-                  style={{
-                    position: "relative",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Canvas displayedHistory={oppData.pic} locked />
-                </div>
-              </Paper>
-            </div>
+            <Canvas
+              displayedHistory={oppData.pic}
+              size={deviceIsSmall ? 300 : 500}
+              locked
+            />
             <div style={{ margin: "20px" }}>
               <Typography variant="subtitle1">
                 According to {bobName}, it's:
@@ -243,26 +225,20 @@ const Result = React.memo((props: any) => {
             style={{
               //border: "orange dashed",
               padding: "10px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
             }}
           >
             <div style={{ marginBottom: "20px" }}>
               <Typography variant="h5">{bobName}'s guess:</Typography>
               <Typography variant="h6">{bobGuess}</Typography>
             </div>
-            <div>
-              <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
-                <div
-                  style={{
-                    position: "relative",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Canvas displayedHistory={aliceData.pic} locked />
-                </div>
-              </Paper>
-            </div>
+            <Canvas
+              displayedHistory={aliceData.pic}
+              size={deviceIsSmall ? 300 : 500}
+              locked
+            />
             <div style={{ margin: "20px" }}>
               <Typography variant="subtitle1">
                 According to you, it's:
@@ -322,6 +298,8 @@ const Game = (props: any) => {
   const waitingForGuess = m("game.guessing.alice.ready");
   const isEndGame = m("game.result");
 
+  const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
+
   let component = <div>game: unhandled {state.toStrings().join(" ")}</div>;
 
   debug("Game render");
@@ -366,6 +344,7 @@ const Game = (props: any) => {
       onRematchReject: () => send("REMATCH_REJECT"),
       onNewGame: () => send("GOTO_MATCH"),
       onQuit: () => send("QUIT"),
+      deviceIsSmall,
     };
     return <Result {...resultProps} />;
   } else

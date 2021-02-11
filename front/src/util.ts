@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Stroke } from "./Canvas";
+import { Stroke, Point } from "./Canvas";
 
 export const __DEV__ = process.env.NODE_ENV === "development";
 
@@ -50,22 +50,37 @@ export interface MainContext {
 }
 
 const serialiseStroke = (stroke: Stroke) => {
-  let points = new Uint8Array(
-    stroke.points.flatMap(([x, y]) => [x >> 8, x & 255, y >> 8, y & 255])
-  );
-  return [stroke.colour, stroke.brushRadius, _arrayBufferToBase64(points)];
+  try {
+    let points = new Uint8Array(
+      stroke.points.flatMap(([x, y]) => [x >> 8, x & 255, y >> 8, y & 255])
+    );
+    return [
+      stroke.colour,
+      stroke.brushRadius,
+      stroke.size,
+      _arrayBufferToBase64(points),
+    ];
+  } catch (e) {
+    debug(e);
+    return ["#000", 5, 400, ""];
+  }
 };
 
 const deserialiseStroke = (row: any[]): Stroke => {
-  let points: [number, number][] = [];
-  const pointBytes = new Uint8Array(_base64ToArrayBuffer(row[2]));
-  for (let i = 0; i < pointBytes.length; i += 4) {
-    points.push([
-      (pointBytes[i] << 8) + pointBytes[i + 1],
-      (pointBytes[i + 2] << 8) + pointBytes[i + 3],
-    ]);
+  try {
+    let points: Point[] = [];
+    const pointBytes = new Uint8Array(_base64ToArrayBuffer(row[3]));
+    for (let i = 0; i < pointBytes.length; i += 4) {
+      points.push([
+        (pointBytes[i] << 8) + pointBytes[i + 1],
+        (pointBytes[i + 2] << 8) + pointBytes[i + 3],
+      ]);
+    }
+    return { colour: row[0], brushRadius: row[1], size: row[2], points };
+  } catch (e) {
+    debug(e);
+    return { colour: "#000", brushRadius: 5, size: 400, points: [] };
   }
-  return { colour: row[0], brushRadius: row[1], points };
 };
 
 export const serialiseStrokes = (strokes: Stroke[]): any[] =>

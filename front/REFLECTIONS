@@ -27,10 +27,14 @@ Perhaps ill write a svelte ui after this. Still need to optimise Canvas as it pe
 Just added an undo/redo feature for the drawing UI. Definitely my most favourite one so far, and the trickiest. Need to understand refs better
 Changed Canvas to go from rerendering on every paint, to not rerendering, to rerendering on a completed brush stroke to facilitate the undo/redo feat.
 
-11/2/2012:
+11/2/2021:
 
 Added a brush cursor that changes colour wrt brushColor. SVG is interesting. Also, I refactored Canvas again. Realised it didnt need to know about strokeHistory at all, just the currentStroke that it was drawing.
 Once that stroke was complete, it would inform the parent via cb and the parent would update its state, removing the need for forceUpdate. 
 forcedHistory is actually the source of truth for what is currently on the Canvas, not strokeHistory. 
 Previously, if the user undos and submits, the sent pic would still contain the supposedly `undone` strokes. Now, forcedHistory is sent instead.
 Renamed forcedHistory to displayedHistory in the end
+
+11/2/2021:
+Added canvas scaling. Had to move drawOnCanvas out of the component. Still unsure how the useEffect works if its called before the first render, while canvasRef is pointing at the dummy element.
+ReactDOM renders components twice in dev mode (iirc?), so this could break when in prod. Need to investigate further
