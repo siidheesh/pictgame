@@ -35,6 +35,6 @@ reportWebVitals((metric) => {
       fetch(url, { body, method: "POST", keepalive: true });
     }
   } catch (e) {
-    debug(e);
+    debug(e, metric);
   }
 });

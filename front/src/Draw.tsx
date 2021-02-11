@@ -131,139 +131,132 @@ const Draw = (props: DrawProps) => {
     setDisplayedHistory(newHistory);
   };
 
+  debug("Draw render");
+
   return (
     <div
       style={{
-        display: "grid",
-        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        margin: "auto",
         padding: "70px 10px 50px 10px",
-        //border: "green dashed",
+        //border: "red dashed",
       }}
+      //onWheel={handleScroll}
     >
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          width: "400px",
-          margin: "auto",
-          //border: "red dashed",
+          marginBottom: "50px",
+          userSelect: "none",
+          textAlign: "center",
         }}
-        //onWheel={handleScroll}
       >
+        <Typography variant="h5">
+          Draw something for {getProp("name")} 🎨
+        </Typography>
+      </div>
+
+      <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
         <div
           style={{
-            marginBottom: "50px",
-            userSelect: "none",
-            textAlign: "center",
+            margin: "auto",
+            display: "flex",
+            flexDirection: "column",
+            cursor: eraseMode
+              ? `url("${encodeURI(
+                  `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'>${eraserIcon.body}</svg>`
+                )}") 5 20, auto`
+              : `url("${encodeURI(
+                  `data:image/svg+xml;utf8,${brushCursor}`
+                )}") 0 24, auto`,
           }}
         >
-          <Typography variant="h5">
-            Draw something for {getProp("name")} 🎨
-          </Typography>
-        </div>
-
-        <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
-          <div
-            style={{
-              margin: "auto",
-              display: "flex",
-              flexDirection: "column",
-              cursor: eraseMode
-                ? `url("${encodeURI(
-                    `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'>${eraserIcon.body}</svg>`
-                  )}") 5 20, auto`
-                : `url("${encodeURI(
-                    `data:image/svg+xml;utf8,${brushCursor}`
-                  )}") 0 24, auto`,
-            }}
-          >
-            <Canvas
-              displayedHistory={displayedHistory}
-              brushColour={brushColour}
-              brushRadius={brushRadius}
-              eraseMode={eraseMode}
-              onStrokeDone={handleStrokeDone}
-            />
-          </div>
-        </Paper>
-        <div style={{ margin: "10px" }} />
-        <Slider
-          value={brushRadius}
-          getAriaValueText={() => "brushRadius"}
-          aria-labelledby="discrete-slider-small-steps"
-          step={getProp("brushRadiusStep")}
-          min={getProp("brushRadiusMin")}
-          max={getProp("brushRadiusMax")}
-          marks
-          valueLabelDisplay="auto"
-          onChange={(e, value) => setbrushRadius(value as number)}
-        />
-        <div style={{ margin: "10px" }} />
-        <ColourPicker
-          color={brushColour}
-          onChangeComplete={(colour, _) => handleColorChange(colour.hex)}
-        />
-        <div style={{ margin: "10px" }} />
-        <ButtonGroup>
-          <Tooltip
-            title={eraseMode ? "Stop erasing" : "Start erasing"}
-            aria-label="erase"
-          >
-            <ToggleButton
-              value="check"
-              selected={eraseMode}
-              onChange={() => setEraseMode(!eraseMode)}
-              size="large"
-            >
-              <Icon icon={eraserIcon} />
-            </ToggleButton>
-          </Tooltip>
-          <Button onClick={handleErase} disabled={strokeHistory.length <= 0}>
-            <DeleteIcon />
-          </Button>
-          <Button
-            onClick={handleUndo}
-            disabled={undoLevel.current >= strokeHistory.length}
-          >
-            <UndoIcon />
-          </Button>
-          <Button onClick={handleRedo} disabled={undoLevel.current <= 0}>
-            <RedoIcon />
-          </Button>
-        </ButtonGroup>
-
-        <div
-          style={{
-            textAlign: "center",
-            marginBottom: "10px",
-            //display: strokeHistory.current.length > 0 ? "block" : "none", // this wont work, ref changes != rerender
-          }}
-        >
-          <div style={{ marginTop: "30px", marginBottom: "10px" }}>
-            <Typography
-              variant="h6"
-              onClick={() =>
-                debug(JSON.stringify(serialiseStrokes(displayedHistory)))
-              }
-            >
-              What did you draw? 👀
-            </Typography>
-          </div>
-          <TextField
-            label="Describe your drawing!"
-            variant="outlined"
-            value={description}
-            onChange={handleDescChange}
-            helperText={
-              inputValid.description
-                ? "(press enter to lock in your guess)"
-                : "Must be filled"
-            }
-            error={!inputValid.description}
-            onKeyDown={handleKeyDown} //https://stackoverflow.com/questions/22473950/keypress-event-not-firing-in-android-mobile
+          <Canvas
+            displayedHistory={displayedHistory}
+            brushColour={brushColour}
+            brushRadius={brushRadius}
+            eraseMode={eraseMode}
+            onStrokeDone={handleStrokeDone}
           />
         </div>
+      </Paper>
+      <div style={{ margin: "10px" }} />
+      <Slider
+        value={brushRadius}
+        getAriaValueText={() => "brushRadius"}
+        aria-labelledby="discrete-slider-small-steps"
+        step={getProp("brushRadiusStep")}
+        min={getProp("brushRadiusMin")}
+        max={getProp("brushRadiusMax")}
+        marks
+        valueLabelDisplay="auto"
+        onChange={(e, value) => setbrushRadius(value as number)}
+      />
+      <div style={{ margin: "10px" }} />
+      <ColourPicker
+        color={brushColour}
+        onChangeComplete={(colour, _) => handleColorChange(colour.hex)}
+      />
+      <div style={{ margin: "10px" }} />
+      <ButtonGroup>
+        <Tooltip
+          title={eraseMode ? "Stop erasing" : "Start erasing"}
+          aria-label="erase"
+        >
+          <ToggleButton
+            value="check"
+            selected={eraseMode}
+            onChange={() => setEraseMode(!eraseMode)}
+            size="large"
+          >
+            <Icon icon={eraserIcon} />
+          </ToggleButton>
+        </Tooltip>
+        <Button onClick={handleErase} disabled={strokeHistory.length <= 0}>
+          <DeleteIcon />
+        </Button>
+        <Button
+          onClick={handleUndo}
+          disabled={undoLevel.current >= strokeHistory.length}
+        >
+          <UndoIcon />
+        </Button>
+        <Button onClick={handleRedo} disabled={undoLevel.current <= 0}>
+          <RedoIcon />
+        </Button>
+      </ButtonGroup>
+
+      <div
+        style={{
+          textAlign: "center",
+          marginBottom: "10px",
+          //display: strokeHistory.current.length > 0 ? "block" : "none", // this wont work, ref changes != rerender
+        }}
+      >
+        <div style={{ marginTop: "30px", marginBottom: "10px" }}>
+          <Typography
+            variant="h6"
+            onClick={() =>
+              debug(JSON.stringify(serialiseStrokes(displayedHistory)))
+            }
+          >
+            What did you draw? 👀
+          </Typography>
+        </div>
+        <TextField
+          label="Describe your drawing!"
+          variant="outlined"
+          value={description}
+          onChange={handleDescChange}
+          helperText={
+            inputValid.description
+              ? "(press enter to lock in your guess)"
+              : "Must be filled"
+          }
+          error={!inputValid.description}
+          onKeyDown={handleKeyDown} //https://stackoverflow.com/questions/22473950/keypress-event-not-firing-in-android-mobile
+        />
       </div>
     </div>
   );

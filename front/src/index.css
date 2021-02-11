@@ -1,5 +1,6 @@
 body,
-html {
+html,
+#root {
   height: 100%;
   display: grid;
   user-select: none;

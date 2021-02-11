@@ -10,6 +10,7 @@ import {
 
 import Draw from "./Draw";
 import Canvas from "./Canvas";
+import { debug } from "./util";
 
 const Guess = (props: any) => {
   const { oppData, onGuess } = props;
@@ -33,66 +34,58 @@ const Guess = (props: any) => {
   return (
     <div
       style={{
-        display: "grid",
-        height: "100%",
-        //border: "green dashed",
+        display: "flex",
+        flexDirection: "column",
+        //border: "dashed",
+        alignItems: "center",
+        margin: "auto",
         padding: "70px 10px 50px 10px",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          //border: "dashed",
-          alignItems: "center",
-          margin: "auto",
-        }}
-      >
-        <div style={{ marginBottom: "50px" }}>
-          <Typography variant="h5" noWrap>
-            {oppData.name} drew this!
-          </Typography>
-        </div>
-        <div>
-          <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
-            <div
-              style={{
-                position: "relative",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-              }}
-            >
-              <Canvas displayedHistory={oppData.pic} locked />
-            </div>
-          </Paper>
-        </div>
-        <div style={{ margin: "20px" }}>
-          <Typography variant="h5" noWrap>
-            What could it be? 🤔
-          </Typography>
-        </div>
-        <TextField
-          label="Your guess"
-          variant="outlined"
-          onKeyDown={handleKeyDown}
-          value={guess}
-          onChange={handleGuessChange}
-          helperText={
-            inputValid.guess
-              ? "(press enter to lock in your guess)"
-              : "Must be filled!"
-          }
-          error={!inputValid.guess}
-        />
-        <Typography
-          variant="caption"
-          noWrap
-          style={{ visibility: guess ? "visible" : "hidden" }}
-        >
-          {false && "(press enter to lock in your guess)"}
+      <div style={{ marginBottom: "50px" }}>
+        <Typography variant="h5" noWrap>
+          {oppData.name} drew this!
         </Typography>
       </div>
+      <div>
+        <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+            }}
+          >
+            <Canvas displayedHistory={oppData.pic} locked />
+          </div>
+        </Paper>
+      </div>
+      <div style={{ margin: "20px" }}>
+        <Typography variant="h5" noWrap>
+          What could it be? 🤔
+        </Typography>
+      </div>
+      <TextField
+        label="Your guess"
+        variant="outlined"
+        onKeyDown={handleKeyDown}
+        value={guess}
+        onChange={handleGuessChange}
+        helperText={
+          inputValid.guess
+            ? "(press enter to lock in your guess)"
+            : "Must be filled!"
+        }
+        error={!inputValid.guess}
+      />
+      <Typography
+        variant="caption"
+        noWrap
+        style={{ visibility: guess ? "visible" : "hidden" }}
+      >
+        {false && "(press enter to lock in your guess)"}
+      </Typography>
     </div>
   );
 };
@@ -103,29 +96,20 @@ const AwaitBob = React.memo((props: any) => {
   return (
     <div
       style={{
-        display: "grid",
-        height: "100%",
-        padding: "10px",
-        //border: "green dashed",
+        margin: "auto",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        //border: "red dashed",
       }}
     >
-      <div
-        style={{
-          margin: "auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          //border: "red dashed",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <Typography variant="h5">
-            Waiting for {name} to finish{" "}
-            {props.drawing ? "drawing" : "guessing"}...
-          </Typography>
-        </div>
-        <CircularProgress color="primary" />
+      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <Typography variant="h5">
+          Waiting for {name} to finish {props.drawing ? "drawing" : "guessing"}
+          ...
+        </Typography>
       </div>
+      <CircularProgress color="primary" />
     </div>
   );
 });
@@ -196,124 +180,111 @@ const Result = React.memo((props: any) => {
             />
           ))}
       </Dialog>
+
       <div
         style={{
-          display: "grid",
-          height: "100%",
-          //border: "green dashed",
+          margin: "auto",
+          display: "flex",
+          flexDirection: "column",
+          //border: "dashed",
           padding: "70px 5px 50px 5px",
         }}
       >
+        <div style={{ marginBottom: "50px" }}>
+          <Typography variant="h4" align="center">
+            Who won? Who lost? You decide! 🥳
+          </Typography>
+        </div>
         <div
           style={{
-            margin: "auto",
+            textAlign: "center",
             display: "flex",
-            flexDirection: "column",
-            //border: "dashed",
+            flexDirection: "row",
+            flexWrap: "wrap",
+            boxSizing: "inherit",
+            justifyContent: "center",
+            alignItems: "center",
+            //border: "red dashed",
           }}
         >
-          <div style={{ marginBottom: "50px" }}>
-            <Typography variant="h4" align="center">
-              Who won? Who lost? You decide! 🥳
-            </Typography>
-          </div>
           <div
             style={{
-              textAlign: "center",
-              display: "flex",
-              flexDirection: "row",
-              flexWrap: "wrap",
-              boxSizing: "inherit",
-              justifyContent: "center",
-              alignItems: "center",
-              //border: "red dashed",
+              //border: "blue dashed",
+              padding: "10px",
             }}
           >
-            <div
-              style={{
-                //border: "blue dashed",
-                padding: "10px",
-              }}
-            >
-              <div style={{ marginBottom: "20px" }}>
-                <Typography variant="h5">Your guess:</Typography>
-                <Typography variant="h6">{aliceGuess}</Typography>
-              </div>
-              <div>
-                <Paper
-                  elevation={6}
-                  style={{ width: "400px", height: "400px" }}
-                >
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Canvas displayedHistory={oppData.pic} locked />
-                  </div>
-                </Paper>
-              </div>
-              <div style={{ margin: "20px" }}>
-                <Typography variant="subtitle1">
-                  According to {bobName}, it's:
-                </Typography>
-                <Typography variant="subtitle1">{oppData.label}</Typography>
-              </div>
+            <div style={{ marginBottom: "20px" }}>
+              <Typography variant="h5">Your guess:</Typography>
+              <Typography variant="h6">{aliceGuess}</Typography>
             </div>
+            <div>
+              <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
+                <div
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Canvas displayedHistory={oppData.pic} locked />
+                </div>
+              </Paper>
+            </div>
+            <div style={{ margin: "20px" }}>
+              <Typography variant="subtitle1">
+                According to {bobName}, it's:
+              </Typography>
+              <Typography variant="subtitle1">{oppData.label}</Typography>
+            </div>
+          </div>
 
-            <div
-              style={{
-                //border: "orange dashed",
-                padding: "10px",
-              }}
-            >
-              <div style={{ marginBottom: "20px" }}>
-                <Typography variant="h5">{bobName}'s guess:</Typography>
-                <Typography variant="h6">{bobGuess}</Typography>
-              </div>
-              <div>
-                <Paper
-                  elevation={6}
-                  style={{ width: "400px", height: "400px" }}
-                >
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Canvas displayedHistory={aliceData.pic} locked />
-                  </div>
-                </Paper>
-              </div>
-              <div style={{ margin: "20px" }}>
-                <Typography variant="subtitle1">
-                  According to you, it's:
-                </Typography>
-                <Typography variant="subtitle1">{aliceData.label}</Typography>
-              </div>
-            </div>
-          </div>
           <div
             style={{
-              display: "flex",
-              flexDirection: "row",
-              flexWrap: "wrap",
-              justifyContent: "center",
-              alignItems: "center",
+              //border: "orange dashed",
+              padding: "10px",
             }}
           >
-            <Button onClick={onRematch} disabled={!rematchAvailable}>
-              {rematchAvailable ? "Ask for Rematch" : "Opponent has left"}
-            </Button>
-            <Button onClick={onNewGame}>New Game</Button>
-            <Button onClick={onQuit}>Quit</Button>
+            <div style={{ marginBottom: "20px" }}>
+              <Typography variant="h5">{bobName}'s guess:</Typography>
+              <Typography variant="h6">{bobGuess}</Typography>
+            </div>
+            <div>
+              <Paper elevation={6} style={{ width: "400px", height: "400px" }}>
+                <div
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Canvas displayedHistory={aliceData.pic} locked />
+                </div>
+              </Paper>
+            </div>
+            <div style={{ margin: "20px" }}>
+              <Typography variant="subtitle1">
+                According to you, it's:
+              </Typography>
+              <Typography variant="subtitle1">{aliceData.label}</Typography>
+            </div>
           </div>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <Button onClick={onRematch} disabled={!rematchAvailable}>
+            {rematchAvailable ? "Ask for Rematch" : "Opponent has left"}
+          </Button>
+          <Button onClick={onNewGame}>New Game</Button>
+          <Button onClick={onQuit}>Quit</Button>
         </div>
       </div>
     </React.Fragment>
@@ -352,6 +323,8 @@ const Game = (props: any) => {
   const isEndGame = m("game.result");
 
   let component = <div>game: unhandled {state.toStrings().join(" ")}</div>;
+
+  debug("Game render");
 
   if (isDrawing) {
     component = (

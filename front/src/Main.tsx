@@ -24,32 +24,26 @@ import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline";
 import { useLocalStorage } from "./util";
 
 const Loading = React.memo((props: any) => (
-  <div style={{ display: "grid", height: "100%", padding: "10px" }}>
-    <div
-      style={{
-        margin: "auto",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
-      <Typography variant="h6">{props.msg}</Typography>
-      <CircularProgress style={{ marginTop: "10px" }} />
-    </div>
+  <div
+    style={{
+      margin: "auto",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+    }}
+  >
+    <Typography variant="h6">{props.msg}</Typography>
+    <CircularProgress style={{ marginTop: "10px" }} />
   </div>
 ));
 
 const Error = React.memo((props: any) => (
   <div
     style={{
-      position: "absolute",
-      left: "50%",
-      top: "50%",
-      transform: "translate(-50%, -50%)",
+      margin: "auto",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      justifyContent: "center",
     }}
   >
     <div
@@ -63,7 +57,7 @@ const Error = React.memo((props: any) => (
       <ErrorOutlineIcon />
     </div>
     <br />
-    <Typography variant="caption">{props.msg}</Typography>
+    <Typography variant="subtitle1">{props.msg}</Typography>
   </div>
 ));
 
@@ -73,26 +67,17 @@ const Start = React.memo((props: any) => {
   return (
     <div
       style={{
-        display: "grid",
-        height: "100%",
-        padding: "10px",
-        //border: "green dashed",
+        margin: "auto",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        //border: "red dashed",
       }}
     >
-      <div
-        style={{
-          margin: "auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          textAlign: "center",
-          //border: "red dashed",
-        }}
-      >
-        <Typography variant="h5">Welcome, {name}!</Typography>
-        <div style={{ marginBottom: "20px" }} />
-        <Button onClick={onStart}>Start game</Button>
-      </div>
+      <Typography variant="h5">Welcome, {name}!</Typography>
+      <div style={{ marginBottom: "20px" }} />
+      <Button onClick={onStart}>Start game</Button>
     </div>
   );
 });
@@ -177,7 +162,7 @@ const Main = () => {
   return <div>main: unhandled {state.toStrings().join(" ")}</div>;
 };
 
-const MainWithOptions = (props: any) => {
+const MainWrapper = (props: any) => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const [darkMode, setDarkMode] = useLocalStorage<boolean>(
     "darkMode",
@@ -218,9 +203,15 @@ const MainWithOptions = (props: any) => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <OptionsFAB {...{ darkMode, setDarkMode }} />
-      <Main />
+      {props.children}
     </ThemeProvider>
   );
 };
 
-export default MainWithOptions;
+const App = () => (
+  <MainWrapper>
+    <Main />
+  </MainWrapper>
+);
+
+export default App;

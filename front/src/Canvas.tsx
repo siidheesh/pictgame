@@ -45,6 +45,9 @@ function Canvas(props: any) {
   const onStrokeDone = getProp("onStrokeDone");
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
+    secondCanvasRef = useRef<HTMLCanvasElement>(
+      document.createElement("canvas")
+    ),
     drawMode = useRef(false);
 
   /**
@@ -60,56 +63,69 @@ function Canvas(props: any) {
     return [canvasX, canvasY];
   }
 
-  function handlePaintStart(
-    x: number,
-    y: number,
-    ctx: CanvasRenderingContext2D | null
-  ) {
+  function handlePaintStart(x: number, y: number) {
     //console.log("handlePaintStart");
-    if (isLocked || drawMode.current || ctx === null) return;
+    if (drawMode.current) return;
 
     drawMode.current = true;
 
     const [canvasX, canvasY] = convertCoords(x, y);
 
-    ///setCurrentStroke({
     currentStroke.current = {
       // start tracking stroke
       colour: eraseMode ? "#ffffff" : brushColour,
       brushRadius: brushRadius,
       points: [[canvasX, canvasY]],
-    }; //);
+    };
 
     drawOnCanvas();
   }
 
-  function handlePaint(
-    x: number,
-    y: number,
-    ctx: CanvasRenderingContext2D | null
-  ) {
+  function handlePaint(x: number, y: number) {
     //console.log("handlePaint");
-    if (isLocked || !drawMode.current || ctx === null) return;
-
-    const [canvasX, canvasY] = convertCoords(x, y);
-
-    ///setCurrentStroke({
     currentStroke.current = {
       // append canvasXY to current stroke
       ...currentStroke.current,
-      points: [...currentStroke.current.points, [canvasX, canvasY]],
-    }; //);
+      points: [...currentStroke.current.points, [x, y]],
+    };
 
     drawOnCanvas();
   }
 
-  function handlePaintEnd() {
-    //console.log("handlePaintEnd");
-    if (!drawMode.current) return;
-    drawMode.current = false;
+  const handleMove = (x: number, y: number) => {
+    const [canvasX, canvasY] = convertCoords(x, y);
 
-    onStrokeDone(currentStroke.current);
+    if (drawMode.current) {
+      handlePaint(canvasX, canvasY);
+    }
+
+    // draw cursor indicator on overlay
+    const ctx = secondCanvasRef.current.getContext("2d");
+    if (ctx !== null) {
+      //debug("Drawing", x, y, brushColour);
+      ctx.clearRect(0, 0, 400, 400);
+      ctx.beginPath();
+      //ctx.fillStyle = brushColour;
+      ctx.strokeStyle = "#000";
+      ctx.arc(canvasX, canvasY, brushRadius, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+  };
+
+  function handlePaintEnd(e: React.UIEvent) {
+    e.preventDefault();
+    //console.log("handlePaintEnd");
+    if (drawMode.current) {
+      drawMode.current = false;
+      onStrokeDone(currentStroke.current);
+    }
   }
+
+  const handleLeave = (e: React.UIEvent) => {
+    handlePaintEnd(e);
+    const ctx = secondCanvasRef.current.getContext("2d");
+    if (ctx !== null) ctx.clearRect(0, 0, 400, 400); // clear overlay
+  };
 
   /**
    * Draws strokes on the canvas
@@ -163,50 +179,59 @@ function Canvas(props: any) {
   }, [displayedHistory]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      height={400}
-      width={400}
-      style={{
-        touchAction: isLocked ? "auto" : "none",
-        imageRendering: "pixelated",
-      }} // enabled touch scrolling if canvas is locked
-      onMouseDown={(e) =>
-        handlePaintStart(
-          e.clientX,
-          e.clientY,
-          (e.target as HTMLCanvasElement).getContext("2d")
-        )
-      }
-      onMouseMove={(e) =>
-        drawMode.current &&
-        handlePaint(
-          e.clientX,
-          e.clientY,
-          (e.target as HTMLCanvasElement).getContext("2d")
-        )
-      }
-      //onWheel={handleCanvasWheel}
-      onMouseUp={handlePaintEnd}
-      onMouseLeave={handlePaintEnd}
-      onTouchStart={(e) =>
-        handlePaintStart(
-          e.changedTouches[0].clientX,
-          e.changedTouches[0].clientY,
-          (e.target as HTMLCanvasElement).getContext("2d")
-        )
-      }
-      onTouchMove={(e) =>
-        drawMode.current &&
-        handlePaint(
-          e.changedTouches[0].clientX,
-          e.changedTouches[0].clientY,
-          (e.target as HTMLCanvasElement).getContext("2d")
-        )
-      }
-      onTouchEnd={handlePaintEnd}
-      onContextMenu={(e) => e.preventDefault()}
-    />
+    <div style={{ position: "relative" }}>
+      <canvas
+        ref={canvasRef}
+        height={400}
+        width={400}
+        style={{
+          position: "absolute",
+          top: "0px",
+          left: "0px",
+          zIndex: 0,
+          backgroundColor: "transparent",
+          imageRendering: "pixelated",
+        }} // enabled touch scrolling if canvas is locked
+      />
+      <canvas
+        ref={secondCanvasRef}
+        height={400}
+        width={400}
+        style={{
+          position: "absolute",
+          top: "0px",
+          left: "0px",
+          zIndex: 1,
+          touchAction: isLocked ? "auto" : "none",
+          imageRendering: "pixelated",
+        }}
+        {...(isLocked // do not register event listeners if isLocked
+          ? {}
+          : {
+              onMouseDown: (e) => handlePaintStart(e.clientX, e.clientY),
+              onMouseMove: (e) => handleMove(e.clientX, e.clientY),
+              onMouseUp: handlePaintEnd,
+              onMouseLeave: handleLeave,
+              onTouchStart: (e) => {
+                e.preventDefault();
+                handlePaintStart(
+                  e.changedTouches[0].clientX,
+                  e.changedTouches[0].clientY
+                );
+              },
+              onTouchMove: (e) => {
+                e.preventDefault();
+                handleMove(
+                  e.changedTouches[0].clientX,
+                  e.changedTouches[0].clientY
+                );
+              },
+              onTouchEnd: handlePaintEnd,
+              onTouchCancel: handlePaintEnd,
+            })}
+        onContextMenu={(e) => e.preventDefault()}
+      />
+    </div>
   );
 }
 

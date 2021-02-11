@@ -44,35 +44,26 @@ const LookingForPlayers = (props: any) => {
   return (
     <div
       style={{
-        display: "grid",
-        height: "100%",
-        padding: "10px",
-        //border: "green dashed",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        margin: "auto",
+        //border: "red dashed",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          margin: "auto",
-          //border: "red dashed",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "30px" }}>
-          <Typography variant="h5" noWrap>
-            Looking for players...
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            style={{ visibility: showNoPlayersMsg ? "visible" : "hidden" }}
-          >
-            None found yet, we'll keep searching!
-          </Typography>
-        </div>
-        <div>
-          <CircularProgress color="primary" />
-        </div>
+      <div style={{ textAlign: "center", marginBottom: "30px" }}>
+        <Typography variant="h5" noWrap>
+          Looking for players...
+        </Typography>
+        <Typography
+          variant="subtitle1"
+          style={{ visibility: showNoPlayersMsg ? "visible" : "hidden" }}
+        >
+          None found yet, we'll keep searching!
+        </Typography>
+      </div>
+      <div>
+        <CircularProgress color="primary" />
       </div>
     </div>
   );
@@ -109,122 +100,114 @@ const Acceptance = (props: any) => {
   return (
     <div
       style={{
-        display: "grid",
-        height: "100%",
-        //border: "green dashed",
+        display: "flex",
+        flexDirection: "column",
+        margin: "auto",
+        //border: "red dashed",
         padding: "50px 0 50px 0",
       }}
     >
+      <div style={{ marginBottom: "20px" }}>
+        <Typography variant="h4" align="center">
+          Player found!
+        </Typography>
+      </div>
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          margin: "auto",
-          //border: "red dashed",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          //border: "yellow dashed",
+          justifyContent: "center",
+          marginBottom: "20px",
         }}
       >
-        <div style={{ marginBottom: "20px" }}>
-          <Typography variant="h4" align="center">
-            Player found!
-          </Typography>
-        </div>
         <div
           style={{
+            width: "300px",
+            //border: "blue dashed",
             display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            //border: "yellow dashed",
-            justifyContent: "center",
-            marginBottom: "20px",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "10px",
           }}
         >
           <div
             style={{
-              width: "300px",
-              //border: "blue dashed",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "10px",
+              textAlign: "center",
+              marginBottom: "20px",
             }}
           >
+            <Typography variant="h5" noWrap>
+              {context.name}
+            </Typography>
+            <Typography variant="subtitle2" noWrap>
+              (aka you)
+            </Typography>
+          </div>
+
+          {aliceAccepted ? (
+            <CheckCircleOutlineRoundedIcon
+              style={{
+                width: 50,
+                height: 50,
+              }}
+            />
+          ) : (
             <div
               style={{
-                textAlign: "center",
-                marginBottom: "20px",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                marginTop: "10px",
               }}
             >
-              <Typography variant="h5" noWrap>
-                {context.name}
-              </Typography>
-              <Typography variant="subtitle2" noWrap>
-                (aka you)
-              </Typography>
+              <Button onClick={handleAccept} color="primary">
+                ✅
+              </Button>
+              <Button onClick={handleReject} color="secondary">
+                ❌
+              </Button>
             </div>
-
-            {aliceAccepted ? (
-              <CheckCircleOutlineRoundedIcon
-                style={{
-                  width: 50,
-                  height: 50,
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  marginTop: "10px",
-                }}
-              >
-                <Button onClick={handleAccept} color="primary">
-                  ✅
-                </Button>
-                <Button onClick={handleReject} color="secondary">
-                  ❌
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              width: "300px",
-              //border: "orange dashed",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "10px",
-            }}
-          >
-            <div style={{ textAlign: "center", marginBottom: "20px" }}>
-              <Typography variant="h5" noWrap>
-                {context.target}
-              </Typography>
-              <Typography variant="subtitle2" noWrap>
-                {bobAccepted ? "is ready to play!" : "is still deciding"}
-              </Typography>
-            </div>
-            {bobAccepted ? (
-              <CheckCircleOutlineRoundedIcon
-                style={{
-                  width: 50,
-                  height: 50,
-                }}
-              />
-            ) : (
-              <CircularProgress />
-            )}
-          </div>
+          )}
         </div>
-        <div style={{ margin: "auto" }}>
-          <CircularProgressWithLabel
-            value={timeLeft > 0 ? (timeLeft / maxTime) * 100 : 100}
-            label={timeLeft}
-            color={timeLeft <= 4 ? "secondary" : "primary"}
-          />
+
+        <div
+          style={{
+            width: "300px",
+            //border: "orange dashed",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "10px",
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
+            <Typography variant="h5" noWrap>
+              {context.target}
+            </Typography>
+            <Typography variant="subtitle2" noWrap>
+              {bobAccepted ? "is ready to play!" : "is still deciding"}
+            </Typography>
+          </div>
+          {bobAccepted ? (
+            <CheckCircleOutlineRoundedIcon
+              style={{
+                width: 50,
+                height: 50,
+              }}
+            />
+          ) : (
+            <CircularProgress />
+          )}
         </div>
+      </div>
+      <div style={{ margin: "auto" }}>
+        <CircularProgressWithLabel
+          value={timeLeft > 0 ? (timeLeft / maxTime) * 100 : 100}
+          label={timeLeft}
+          color={timeLeft <= 4 ? "secondary" : "primary"}
+        />
       </div>
     </div>
   );
@@ -240,6 +223,8 @@ const Match = (props: any) => {
     m("match.waitForConfirmation") ||
     m("match.handshake");
   const inAcceptance = m("match.acceptance");
+
+  debug("Match render");
 
   if (inMatchmaking) {
     return <LookingForPlayers />;
