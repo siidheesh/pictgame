@@ -19,8 +19,7 @@ import eraserIcon from "@iconify-icons/mdi/eraser";
 import Canvas from "./Canvas";
 import { CompactPicker } from "react-color";
 
-import { serialiseStrokes, deserialiseStrokes, debug } from "./util";
-import { getBrushCursor } from "./brush";
+import { serialiseStrokes, deserialiseStrokes, debug, hexToRgb } from "./util";
 
 interface DrawProps {
   [key: string]: any;
@@ -28,6 +27,11 @@ interface DrawProps {
 
 const rawDefaultPic =
   '[["black",5,"AKUArQClAKwApACsAKQArgClAK4="],["black",5,"AKEA5gChAOY="],["black",5,"ANUAmwDVAJsA1gCbANcAmwDYAJsA2ACcANkAnADaAJwA2gCeANsAngDcAJ4A3QCeAN0AnwDdAJ8A3gCgAN8AoADgAKIA4QCiAOEAogDhAKIA4gCjAOMApADkAKQA5QCkAOUApgDlAKYA5QCmAOYApgDmAKcA5wCnAOgAqADpAKgA6QCqAOkAqgDpAKoA6gCqAOoAqwDrAKsA6wCsAOwArADtAK4A7QCuAO0ArgDtAK8A7gCvAO4AsADvALAA8ACyAPAAswDxALMA8QC0APEAtADxALQA8QC1APIAtgDyALcA8gC4APMAuADzALkA9AC6APQAvAD1ALwA9QC9APUAvgD1AL8A9QDAAPUAwAD1AMAA9QDBAPUAwgD2AMMA9gDEAPYAxAD2AMUA9gDGAPYAxwD2AMgA9gDIAPcAygD3AMsA9wDMAPcAzAD3AM0A9wDOAPcAzwD3ANAA9wDQAPcA0QD2ANMA9gDUAPYA1AD2ANUA9gDWAPUA1gD1ANcA9QDYAPUA2AD1ANkA9QDaAPUA2wDzANwA8wDcAPMA3QDzAN0A8wDeAPMA3wDyAOAA8QDhAPEA4gDxAOMA8QDkAO8A5ADvAOQA7wDlAO8A5QDvAOYA7wDnAO4A5wDuAOgA7QDoAO0A6QDtAOkA7QDqAO0A6gDrAOoA6wDsAOsA7ADrAO0A6gDuAOoA7gDpAO4A6QDwAOkA8ADnAPEA5wDyAOcA8gDnAPIA5gD0AOYA9ADlAPQA5QD1AOUA9QDlAPYA4wD4AOMA+ADiAPgA4gD5AOEA+QDhAPoA4QD6AOEA+gDhAPwA4AD8AN8A/ADfAPwA3gD8AN0A/ADdAP0A3AD9ANsA/QDbAP4A2gD+ANkA/gDZAP4A2QD+ANgA/gDXAQAA1gEAANUBAADVAQEA1AEBANQBAgDTAQIA0wECANMBAgDTAQQA1AEE"]]';
+
+const getBrushCursor = (brushColour: string) =>
+  `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="24px" height="24px" viewBox="0 0 347.523 347.523" data-reactroot=""><g><g><path d="M108.674,196.125c-2.857-0.402-5.777-0.592-8.746-0.534c-14.267,0.278-36.342,6.092-60.493,32.207 c-19.171,20.729-19.954,42.635-20.644,61.961c-0.66,18.474-1.181,33.065-16.507,43.727c-1.506,1.049-2.318,2.837-2.113,4.661 c0.128,1.147,0.645,2.191,1.434,2.98c0.466,0.466,1.026,0.843,1.658,1.099c28.523,11.553,77.316,5.895,117.044-33.833 c18.043-18.044,28.812-37.145,31.14-55.233c0.607-4.719,0.618-9.323,0.091-13.763L108.674,196.125z M100.915,229.382 c-1.553,2.174-3.859,3.612-6.494,4.052c-19.209,3.202-25.884,15.953-26.159,16.494c-1.627,3.387-5.167,5.611-8.989,5.611 c-0.337,0-0.676-0.017-1.015-0.052c-1.149-0.117-2.264-0.432-3.313-0.936c-4.97-2.391-7.069-8.376-4.681-13.347 c0.442-0.918,11.153-22.546,40.869-27.5c0.546-0.09,1.1-0.136,1.647-0.136c4.908,0,9.055,3.516,9.861,8.357 C103.08,224.559,102.467,227.207,100.915,229.382z" style="fill:${hexToRgb(
+    brushColour
+  )}"></path><path d="M340.587,6.796c-8.615-8.614-22.425-9.1-31.624-1.112c-5.782,5.021-141.818,123.166-160.166,141.513 c-9.175,9.175-20.946,24.898-31.124,39.428l42.864,43.271c14.546-10.18,30.345-22.003,39.65-31.308 C218.749,180.024,336.69,44.193,341.703,38.42C349.688,29.22,349.201,15.41,340.587,6.796z" style="fill:brown"></path></g></g></svg>`;
 
 const Draw = (props: DrawProps) => {
   const defaultProps: DrawProps = {
@@ -231,7 +235,7 @@ const Draw = (props: DrawProps) => {
         style={{
           textAlign: "center",
           marginBottom: "10px",
-          //display: strokeHistory.current.length > 0 ? "block" : "none", // this wont work, ref changes != rerender
+          visibility: displayedHistory.length > 0 ? "visible" : "hidden",
         }}
       >
         <div style={{ marginTop: "30px", marginBottom: "10px" }}>
@@ -251,7 +255,7 @@ const Draw = (props: DrawProps) => {
           onChange={handleDescChange}
           helperText={
             inputValid.description
-              ? "(press enter to lock in your guess)"
+              ? "(press enter to lock in your drawing)"
               : "Must be filled"
           }
           error={!inputValid.description}
