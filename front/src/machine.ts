@@ -477,28 +477,25 @@ const mainMachine = createMachine<MainContext>(
           result: {
             initial: "idle",
             onDone: "round",
+            on: {
+              INFORM_DISCONNECT: {
+                target: ".noRematch",
+                cond: (context, event) => context.target === event.source,
+              },
+              BOB_QUIT: ".noRematch",
+            },
             states: {
               idle: {
                 on: {
                   REMATCH: { target: "waitForBob", actions: "sendRematchReq" },
                   REMATCH_REQ: "waitForDecision",
-                  BOB_QUIT: "noRematch",
-                  INFORM_DISCONNECT: {
-                    target: "noRematch",
-                    cond: (context, event) => context.target === event.source,
-                  },
                 },
               },
               waitForBob: {
                 on: {
                   REMATCH_OK: "ready",
                   REMATCH_REQ: "ready",
-                  BOB_QUIT: "noRematch",
                   REMATCH_REJECT: "noRematch",
-                  INFORM_DISCONNECT: {
-                    target: "noRematch",
-                    cond: (context, event) => context.target === event.source,
-                  },
                 },
               },
               waitForDecision: {
@@ -526,7 +523,7 @@ const mainMachine = createMachine<MainContext>(
   },
   {
     delays: {
-      matchWait: () => getRandInRange(5000, 8000),
+      matchWait: () => getRandInRange(2000, 5000),
       matchConfirmation: () => getRandInRange(800, 1000),
     },
     actions: {

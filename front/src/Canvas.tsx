@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import { Paper } from "@material-ui/core";
-import { debug } from "./util";
+import { debug, getRandInRange } from "./util";
 
 export type Point = [number, number];
 export interface Stroke {
@@ -18,6 +18,7 @@ export interface Props {
   locked?: boolean;
   onStrokeDone?: (currentStroke: Stroke) => void;
   size?: number;
+  animated?: boolean;
 }
 
 const defaultProps: any = {
@@ -28,6 +29,7 @@ const defaultProps: any = {
   locked: false,
   onStrokeDone: () => {},
   size: 400,
+  animated: false,
 };
 
 /**
@@ -38,21 +40,16 @@ const defaultProps: any = {
  * @param {boolean} [lastPointOnly=true] Whether to draw the stroke's last point, or all its points
  */
 const drawOnCanvas = (
-  ctx: CanvasRenderingContext2D | null,
+  ctx: CanvasRenderingContext2D,
   stroke: Stroke,
   size: number,
   lastPointOnly = true
 ) => {
-  //const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+  if (!stroke?.points) return;
 
-  if (!ctx || !stroke?.points) return;
-
-  const scale = (x: number) => Math.floor(x * (size / stroke.size));
-  const scalePoint = (point: Point): Point => [
-    scale(point[0]),
-    scale(point[1]),
-  ];
-
+  const ratio = size / stroke.size;
+  const scale = (x: number) => Math.floor(x * ratio);
+  const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
   const radius = Math.max(1, scale(stroke.brushRadius));
 
   if (stroke.points.length === 1) {
@@ -93,19 +90,28 @@ function Canvas(props: any) {
 
   const currentStroke = useRef({} as Stroke);
 
-  const displayedHistory = getProp("displayedHistory"); // previously forcedHistory
+  const displayedHistory: Stroke[] = getProp("displayedHistory"); // previously forcedHistory
 
   const size = getProp("size");
   const brushColour = getProp("brushColour");
   const brushRadius = getProp("brushRadius");
   const eraseMode = getProp("eraseMode");
   const isLocked = getProp("locked");
+  const animated = getProp("animated");
 
   const onStrokeDone = getProp("onStrokeDone");
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
     overlayRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
-    drawMode = useRef(false);
+    drawMode = useRef(false),
+    animState = useRef({
+      rafRef: 0,
+      strokeIdx: 0,
+      pointIdx: 0,
+      lastCalled: 0,
+      currentDelay: 0,
+      initialDelay: 0,
+    });
 
   /**
    * Converts client coords (mouse/touch) to canvas-rel coords
@@ -135,7 +141,7 @@ function Canvas(props: any) {
     };
 
     const ctx = canvasRef.current?.getContext("2d", { alpha: false });
-    drawOnCanvas(ctx, currentStroke.current, size);
+    if (ctx) drawOnCanvas(ctx, currentStroke.current, size);
   }
 
   function handlePaint(x: number, y: number, drawOverlay = true) {
@@ -143,24 +149,31 @@ function Canvas(props: any) {
     const canvasXY = convertCoords(x, y);
 
     if (drawMode.current) {
-      currentStroke.current = {
-        // append canvasXY to current stroke
-        ...currentStroke.current,
-        points: [...currentStroke.current.points, canvasXY],
-      };
-
-      const ctx = canvasRef.current?.getContext("2d", { alpha: false });
-      drawOnCanvas(ctx, currentStroke.current, size);
+      const prevPoint =
+        currentStroke.current.points[currentStroke.current.points.length - 1];
+      // ignore points that are sufficiently close, to save space
+      // TODO: track all points here, write a wasm module to remove them before exporting thr pic
+      if (
+        (prevPoint[0] - canvasXY[0]) ** 2 + (prevPoint[1] - canvasXY[1]) ** 2 >=
+        currentStroke.current.brushRadius ** 1
+      ) {
+        currentStroke.current = {
+          // append canvasXY to current stroke
+          ...currentStroke.current,
+          points: [...currentStroke.current.points, canvasXY],
+        };
+        const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+        if (ctx) drawOnCanvas(ctx, currentStroke.current, size);
+      }
     }
 
     if (drawOverlay) {
       // draw cursor indicator on overlay
-      const ctx = overlayRef.current?.getContext("2d");
+      const ctx = overlayRef.current?.getContext("2d", { alpha: true });
       if (ctx) {
         //debug("Drawing", x, y, brushColour);
         ctx.clearRect(0, 0, size, size);
         ctx.beginPath();
-        //ctx.fillStyle = brushColour;
         ctx.strokeStyle = "#000";
         ctx.arc(canvasXY[0], canvasXY[1], brushRadius, 0, 2 * Math.PI);
         ctx.stroke();
@@ -177,30 +190,117 @@ function Canvas(props: any) {
     }
 
     if (clearOverlay) {
-      const ctx = overlayRef.current?.getContext("2d");
+      const ctx = overlayRef.current?.getContext("2d", { alpha: true }); // has to be transparent
       if (ctx) ctx.clearRect(0, 0, size, size); // clear overlay
     }
   }
 
+  // TODO: refactor the painting logic out of this
+  const frameLoop = useCallback(
+    (time: number) => {
+      if (!animState.current.lastCalled) {
+        animState.current.lastCalled = time;
+        animState.current.currentDelay = animState.current.initialDelay;
+      } else if (
+        time - animState.current.lastCalled >=
+        animState.current.currentDelay
+      ) {
+        animState.current.lastCalled = time;
+
+        const stroke = displayedHistory[animState.current.strokeIdx];
+        if (!stroke) return;
+
+        const point =
+          displayedHistory[animState.current.strokeIdx].points[
+            animState.current.pointIdx
+          ];
+        if (!point) return;
+
+        const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+
+        if (ctx) {
+          const ratio = size / stroke.size;
+          const scale = (x: number) => Math.floor(x * ratio);
+          const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
+          const radius = Math.max(1, scale(stroke.brushRadius));
+          const currentPoint = scalePoint(point);
+
+          if (stroke.points.length === 1 || animState.current.pointIdx === 0) {
+            ctx.beginPath();
+            ctx.fillStyle = stroke.colour;
+            ctx.arc(currentPoint[0], currentPoint[1], radius, 0, 2 * Math.PI);
+            ctx.fill();
+          } else {
+            ctx.lineWidth = radius * 2;
+            ctx.lineCap = "round";
+            ctx.strokeStyle = stroke.colour;
+            ctx.beginPath();
+            const prevPoint = scalePoint(
+              displayedHistory[animState.current.strokeIdx].points[
+                animState.current.pointIdx - 1
+              ]
+            ); // should never be nullish
+            ctx.moveTo(prevPoint[0], prevPoint[1]);
+            ctx.lineTo(currentPoint[0], currentPoint[1]);
+            ctx.stroke();
+          }
+        }
+
+        animState.current.pointIdx += 1;
+
+        if (animState.current.pointIdx >= stroke.points.length) {
+          // move to next stroke
+          animState.current.pointIdx = 0;
+          animState.current.strokeIdx += 1;
+          animState.current.currentDelay = getRandInRange(160, 240);
+        } else animState.current.currentDelay = getRandInRange(0, 32);
+
+        if (animState.current.strokeIdx >= displayedHistory.length) {
+          // no more strokes
+          return;
+        }
+      }
+      animState.current.rafRef = requestAnimationFrame(frameLoop);
+    },
+    [displayedHistory, size]
+  );
+
   useEffect(() => {
-    //clear and redraw on displayedHistory change
-    let ctx = canvasRef.current?.getContext("2d"); // alpha cant be false or itll wont clear properly
-    if (ctx) ctx.clearRect(0, 0, size, size);
-    ctx = canvasRef.current?.getContext("2d", { alpha: false });
-    if (ctx)
-      displayedHistory.forEach((stroke: Stroke) =>
-        drawOnCanvas(ctx, stroke, size, false)
-      ); //manually call draw function
-    debug("Canvas redrew");
-  }, [displayedHistory, size]);
+    //clear and redraw on displayedHistory/size/animated change
+    const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+    if (ctx) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, size, size);
+
+      if (!animated) {
+        displayedHistory.forEach((stroke: Stroke) =>
+          drawOnCanvas(ctx, stroke, size, false)
+        ); //manually call draw function
+      } else {
+        animState.current = {
+          rafRef: 0,
+          strokeIdx: 0,
+          pointIdx: 0,
+          lastCalled: 0,
+          currentDelay: 0,
+          initialDelay: getRandInRange(160, 240),
+        };
+        animState.current.rafRef = window.requestAnimationFrame(frameLoop);
+        return () => window.cancelAnimationFrame(animState.current.rafRef);
+      }
+
+      debug("Canvas redrew");
+    }
+  }, [displayedHistory, size, animated, frameLoop]);
 
   return (
     <Paper
-      elevation={5}
+      elevation={6}
       style={{
         position: "relative",
         width: `${size}px`,
         height: `${size}px`,
+        transform: "translateZ(0px)",
       }}
     >
       <canvas

@@ -13,7 +13,7 @@ import Canvas from "./Canvas";
 import { debug } from "./util";
 
 const Guess = (props: any) => {
-  const { oppData, onGuess } = props;
+  const { oppData, onGuess, deviceIsSmall } = props;
   const [guess, setGuess] = useState("");
   const [inputValid, setInputValid] = useState({ guess: false });
 
@@ -47,7 +47,11 @@ const Guess = (props: any) => {
           {oppData.name} drew this!
         </Typography>
       </div>
-      <Canvas displayedHistory={oppData.pic} locked />
+      <Canvas
+        displayedHistory={oppData.pic}
+        size={deviceIsSmall ? 300 : 500}
+        locked
+      />
       <div style={{ margin: "20px" }}>
         <Typography variant="h5" noWrap>
           What could it be? 🤔
@@ -155,7 +159,7 @@ const Result = React.memo((props: any) => {
   } = props;
 
   return (
-    <React.Fragment>
+    <>
       <Dialog open={rematchModal} aria-labelledby="" aria-describedby="">
         {rematchModal &&
           (rematchModalType ? (
@@ -263,7 +267,7 @@ const Result = React.memo((props: any) => {
           <Button onClick={onQuit}>Quit</Button>
         </div>
       </div>
-    </React.Fragment>
+    </>
   );
 });
 
@@ -323,6 +327,7 @@ const Game = (props: any) => {
       <Guess
         onGuess={handleGuess}
         oppData={{ ...state.context.oppData, name: state.context.target }}
+        deviceIsSmall={deviceIsSmall}
       />
     );
   }
@@ -349,7 +354,7 @@ const Game = (props: any) => {
     return <Result {...resultProps} />;
   } else
     return (
-      <React.Fragment>
+      <>
         <OppLeftGame
           open={state.context.oppDisconnected}
           name={state.context.target}
@@ -357,7 +362,7 @@ const Game = (props: any) => {
           onQuit={() => send("QUIT")}
         />
         {component}
-      </React.Fragment>
+      </>
     );
 };
 
