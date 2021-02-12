@@ -20,7 +20,7 @@ import {
   debug,
 } from "./util";
 
-const socket = io("wss://api.siidhee.sh");
+const socket = io("wss://pgapi.siid.sh");
 
 const errors = [
   // errorType, errorMessage, isRecoverable

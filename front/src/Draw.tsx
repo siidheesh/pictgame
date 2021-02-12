@@ -12,11 +12,12 @@ import ToggleButton from "@material-ui/lab/ToggleButton";
 import DeleteIcon from "@material-ui/icons/Delete";
 import UndoIcon from "@material-ui/icons/Undo";
 import RedoIcon from "@material-ui/icons/Redo";
+import PanToolIcon from "@material-ui/icons/PanTool";
 
 import { Icon } from "@iconify/react";
 import eraserIcon from "@iconify-icons/mdi/eraser";
 
-import Canvas from "./Canvas";
+import Canvas, { Stroke } from "./Canvas";
 import { CompactPicker } from "react-color";
 
 import { serialiseStrokes, deserialiseStrokes, debug, hexToRgb } from "./util";
@@ -25,8 +26,8 @@ interface DrawProps {
   [key: string]: any;
 }
 
-const rawDefaultPic =
-  '[["#000",5,400,"AKUArQClAKwApACsAKQArgClAK4="],["#000",5,400,"AKEA5gChAOY="],["#000",5,400,"ANUAmwDVAJsA1gCbANcAmwDYAJsA2ACcANkAnADaAJwA2gCeANsAngDcAJ4A3QCeAN0AnwDdAJ8A3gCgAN8AoADgAKIA4QCiAOEAogDhAKIA4gCjAOMApADkAKQA5QCkAOUApgDlAKYA5QCmAOYApgDmAKcA5wCnAOgAqADpAKgA6QCqAOkAqgDpAKoA6gCqAOoAqwDrAKsA6wCsAOwArADtAK4A7QCuAO0ArgDtAK8A7gCvAO4AsADvALAA8ACyAPAAswDxALMA8QC0APEAtADxALQA8QC1APIAtgDyALcA8gC4APMAuADzALkA9AC6APQAvAD1ALwA9QC9APUAvgD1AL8A9QDAAPUAwAD1AMAA9QDBAPUAwgD2AMMA9gDEAPYAxAD2AMUA9gDGAPYAxwD2AMgA9gDIAPcAygD3AMsA9wDMAPcAzAD3AM0A9wDOAPcAzwD3ANAA9wDQAPcA0QD2ANMA9gDUAPYA1AD2ANUA9gDWAPUA1gD1ANcA9QDYAPUA2AD1ANkA9QDaAPUA2wDzANwA8wDcAPMA3QDzAN0A8wDeAPMA3wDyAOAA8QDhAPEA4gDxAOMA8QDkAO8A5ADvAOQA7wDlAO8A5QDvAOYA7wDnAO4A5wDuAOgA7QDoAO0A6QDtAOkA7QDqAO0A6gDrAOoA6wDsAOsA7ADrAO0A6gDuAOoA7gDpAO4A6QDwAOkA8ADnAPEA5wDyAOcA8gDnAPIA5gD0AOYA9ADlAPQA5QD1AOUA9QDlAPYA4wD4AOMA+ADiAPgA4gD5AOEA+QDhAPoA4QD6AOEA+gDhAPwA4AD8AN8A/ADfAPwA3gD8AN0A/ADdAP0A3AD9ANsA/QDbAP4A2gD+ANkA/gDZAP4A2QD+ANgA/gDXAQAA1gEAANUBAADVAQEA1AEBANQBAgDTAQIA0wECANMBAgDTAQQA1AEE"]]';
+const rawPictgame2 =
+  '[["#d33115",4,300,"ADoAOwA6AEQAOABRADcAYQA3AGM="],["#d33115",4,300,"AD4AOgBHADMATwAzAFoAOgBaAEIAVQBKAE0ATgBDAE0APwBK"],["#e27300",4,300,"AIsAOQB9ADoAdgA7AHAAPABrAD0="],["#e27300",4,300,"AHkAPQB3AEwAdgBUAHYAWgB2AF4AdgBg"],["#e27300",4,300,"AIMAZgB0AGYAbgBmAGoAZQBoAGU="],["#fcc400",4,300,"AK8APgCjAEMAmwBPAJoAVgCbAF4AoABjAKcAZgCuAGcAsgBo"],["#68bc00",4,300,"AOsAPADXAD0A0QA9AM0APQDKAD8="],["#68bc00",4,300,"ANgAPwDYAEkA1wBTANcAXgDXAGk="],["#16a5a5",3,300,"AEsArQA+ALIAOQC5ADYAwAA0AMcAMwDOADMA0wA0ANcAOADYAD0A1QBDANAASADLAEoAxwBMAMoATADPAEwA0wBMANY="],["#16a5a5",3,300,"AFkAwQBMAMQARwDEAEMAxAA/AMMAPQDC"],["#009ce0",3,300,"AGMA1wBoAMsAbQDEAHEAvABzALYAdQCxAHYArwB3AK0AeACr"],["#009ce0",3,300,"AHkArAB9ALQAgAC8AIMAxACFAMwAhwDWAIgA2ACHANU="],["#009ce0",3,300,"AIEAxgB1AMUAcADGAG0AxgBpAMc="],["#7b64ff",3,300,"AJ8ArQCdAMAAnADMAJwA0ACbANIAnADQAJ0AywCeAMQAnwC8AKAAtQCiAK8AowCrAKYAqwCoALAAqgC3AKsAvwCrAMQAqwDHAKsAxACsAL4ArgC3ALEAsAC0AKsAtgCqALgArAC5ALIAuwC8ALwAxQC9AMwAvQDQ"],["#fa28ff",3,300,"AOEAqgDYAKoA1gCqANQArADTAK4A0wCxANIAtwDSAL0A0QDCANEAxwDRAMsA0QDNANAA0ADPANIA1ADSANkA0ADdANAA4ADPAOIAzw=="],["#fa28ff",3,300,"AOQAvwDaAL8A1gC+ANMAvg=="],["#000000",2,300,"AIkBAA=="],["#000000",2,300,"AIcBDQ=="],["#000000",2,300,"AJIA+QCYAQAAmQEDAJkBBgCZAQkAlgEQAJQBEgCSARQAkQEV"]]';
 
 // TODO: replace canvas overlay with a circle in the cursor svg itself
 const getBrushCursor = (brushColour: string) =>
@@ -51,13 +52,14 @@ const Draw = (props: DrawProps) => {
   const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
 
   const [eraseMode, setEraseMode] = useState(false);
+  const [dragMode, setDragMode] = useState(false);
   const [brushColour, setBrushColour] = useState(getProp("brushColour"));
   const [brushRadius, setbrushRadius] = useState(
     deviceIsSmall ? getProp("brushRadiusSmall") : getProp("brushRadius")
   );
 
   const defaultPic = useMemo(
-    () => deserialiseStrokes(JSON.parse(rawDefaultPic)),
+    () => deserialiseStrokes(JSON.parse(rawPictgame2)),
     []
   );
   const [displayedHistory, setDisplayedHistory] = useState(defaultPic); // the strokes currently displayed (previously forcedHistory)
@@ -84,6 +86,7 @@ const Draw = (props: DrawProps) => {
   };
 
   const handleSubmit = () => {
+    // BUG: need to preprocess displayedHistory to remove out-of-bounds points
     if (inputValid.description /*&& displayedHistory.length > 0*/)
       getProp("onSubmit")({
         pic: displayedHistory,
@@ -141,6 +144,21 @@ const Draw = (props: DrawProps) => {
     setDisplayedHistory(newHistory);
   };
 
+  const handleDragDone = (
+    strokeIndexes: number[],
+    draggedStrokeHistory: Stroke[]
+  ) => {
+    if (!strokeIndexes || !draggedStrokeHistory) return;
+    debug("handleStrokeDone");
+    const newHistory = displayedHistory.map((stroke, idx) =>
+      idx in strokeIndexes && idx <= draggedStrokeHistory.length
+        ? draggedStrokeHistory[idx]
+        : stroke
+    );
+    setStrokeHistory(newHistory);
+    setDisplayedHistory(newHistory);
+  };
+
   debug("Draw render");
 
   return (
@@ -170,7 +188,9 @@ const Draw = (props: DrawProps) => {
           margin: "auto",
           display: "flex",
           flexDirection: "column",
-          cursor: eraseMode
+          cursor: dragMode
+            ? "crosshair"
+            : eraseMode
             ? `url("${encodeURI(
                 `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'>${eraserIcon.body}</svg>`
               )}") 5 20, auto`
@@ -184,7 +204,9 @@ const Draw = (props: DrawProps) => {
           brushColour={brushColour}
           brushRadius={brushRadius}
           eraseMode={eraseMode}
+          dragMode={dragMode}
           onStrokeDone={handleStrokeDone}
+          onDragDone={handleDragDone}
           size={deviceIsSmall ? 300 : 500}
         />
       </div>
@@ -217,6 +239,19 @@ const Draw = (props: DrawProps) => {
           />
         </div>
         <ButtonGroup style={{ padding: "5px" }}>
+          <Tooltip
+            title={eraseMode ? "Stop dragging" : "Start dragging"}
+            aria-label="drag"
+          >
+            <ToggleButton
+              value="check"
+              selected={dragMode}
+              onChange={() => setDragMode(!dragMode)}
+              //size="large"
+            >
+              <PanToolIcon />
+            </ToggleButton>
+          </Tooltip>
           <Tooltip
             title={eraseMode ? "Stop erasing" : "Start erasing"}
             aria-label="erase"
