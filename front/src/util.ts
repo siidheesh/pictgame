@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Stroke, Point } from "./Canvas";
+import { Stroke } from "./Canvas";
 
 export const __DEV__ = process.env.NODE_ENV === "development";
 
@@ -49,39 +49,20 @@ export interface MainContext {
   oppDisconnected: boolean;
 }
 
-const serialiseStroke = (stroke: Stroke) => {
-  try {
-    let points = new Uint8Array(
-      stroke.points.flatMap(([x, y]) => [x >> 8, x & 255, y >> 8, y & 255])
-    );
-    return [
-      stroke.colour,
-      stroke.brushRadius,
-      stroke.size,
-      _arrayBufferToBase64(points),
-    ];
-  } catch (e) {
-    debug(e);
-    return ["#000", 5, 400, ""];
-  }
-};
+//FIXME: find a new way to serialise strokes, old one had a signed overflow bug. using JSON for now
+const serialiseStroke = (stroke: Stroke) => [
+  stroke.colour,
+  stroke.brushRadius,
+  stroke.size,
+  JSON.stringify(stroke.points),
+];
 
-const deserialiseStroke = (row: any[]): Stroke => {
-  try {
-    let points: Point[] = [];
-    const pointBytes = new Uint8Array(_base64ToArrayBuffer(row[3]));
-    for (let i = 0; i < pointBytes.length; i += 4) {
-      points.push([
-        (pointBytes[i] << 8) + pointBytes[i + 1],
-        (pointBytes[i + 2] << 8) + pointBytes[i + 3],
-      ]);
-    }
-    return { colour: row[0], brushRadius: row[1], size: row[2], points };
-  } catch (e) {
-    debug(e);
-    return { colour: "#000", brushRadius: 5, size: 400, points: [] };
-  }
-};
+const deserialiseStroke = (row: any[]): Stroke => ({
+  colour: row[0],
+  brushRadius: row[1],
+  size: row[2],
+  points: JSON.parse(row[3]),
+});
 
 export const serialiseStrokes = (strokes: Stroke[]): any[] =>
   strokes.map(serialiseStroke);

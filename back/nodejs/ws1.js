@@ -120,29 +120,26 @@ const processClientMsg = (origMsg) => {
       }
       break;
     case msgType.NAME_DECREE: // msg: [type, target, name]
-      io.sockets.sockets.forEach((socket) => {
-        if (found) return;
-        else if (socket && socket.uuid === msg[1]) {
+      for (const socket of io.sockets.sockets.values()) {
+        if (socket?.uuid === msg[1]) {
           socket.username = msg[2];
-          debug(`${msg[1]} is henceforth ${socket.username}`);
+          //debug(`${msg[1]} is henceforth ${socket.username}`);
           socket.emit("NAME_DECREE", msg[2]);
           if (socket.uuid) delete socket.uuid;
-          found = true;
+          break;
         }
-      });
+      }
       break;
     case msgType.DATA: // msg: [type, source, target, payload]
-      io.sockets.sockets.forEach((socket) => {
-        if (found) return;
-        else if (
-          socket &&
-          socket.username === msg[2] &&
-          (!socket.matchedWith || socket.matchedWith === msg[1]) // filter DATA if socket has match
+      for (const socket of io.sockets.sockets.values()) {
+        if (
+          socket?.username === msg[2] &&
+          (!socket?.matchedWith || socket.matchedWith === msg[1]) // filter DATA if socket has match
         ) {
           socket.emit("DATA", [msg[1], msg[3]]);
-          found = true;
+          break;
         }
-      });
+      }
       break;
     case msgType.MATCH_REQ: // msg: [type, source, {level, allowLower}]
       if (imTheLeader()) {
@@ -186,25 +183,31 @@ const processClientMsg = (origMsg) => {
       }
       break;
     case msgType.MATCH_DECREE: // msg: [type, source, target]
-      io.sockets.sockets.forEach((socket) => {
-        if (found) return;
-        else if (socket && socket.username === msg[2]) {
+      for (const socket of io.sockets.sockets.values()) {
+        if (socket?.username === msg[2]) {
           socket.emit("MATCH_DECREE", msg[1]);
-          found = true;
+          break;
         }
-      });
+      }
       break;
     case msgType.INFORM_DISCONNECT: // msg: [type, source, target]
       // TODO: if a server crashes, the leader could publish all the clientnames of said server, informing their opps, if any, of their disconnection
-      io.sockets.sockets.forEach((socket) => {
-        if (found) return;
-        else if (socket && socket.username === msg[2]) {
-          // inform target that source has disconnected, and if target is matchedWith source, clear that as well
-          if (socket?.matchedWith === msg[1]) delete socket.matchedWith;
-          socket.emit("INFORM_DISCONNECT", msg[1]);
-          found = true;
+      if (imTheLeader) {
+        // need to clear bin(s) referring to the disconnected player, if any
+        waitingPlayers = waitingPlayers.map((bin) =>
+          bin.id !== msg[1] ? bin : {}
+        );
+      }
+      if (msg[2])
+        // disconnected client was matched with someone
+        for (const socket of io.sockets.sockets.values()) {
+          if (socket?.username === msg[2]) {
+            // inform target that source has disconnected, and if target is matchedWith source, clear that as well
+            if (socket?.matchedWith === msg[1]) delete socket.matchedWith;
+            socket.emit("INFORM_DISCONNECT", msg[1]);
+            break;
+          }
         }
-      });
       break;
     default:
       debug(`unknown msg.type ${msg[0]}: ${JSON.stringify(msg)}`);
@@ -265,21 +268,31 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     if (socket.username) {
-      socket.matchedWith &&
-        pub.publish(
-          clientChannel,
-          JSON.stringify([
-            msgType.INFORM_DISCONNECT,
-            socket.username,
-            socket.matchedWith,
-          ])
-        );
+      pub.publish(
+        clientChannel,
+        JSON.stringify([
+          msgType.INFORM_DISCONNECT,
+          socket.username,
+          socket.matchedWith ?? null,
+        ])
+      );
       pub.srem(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
       debug(`${socket.username} disconnected`);
+      debug(
+        `${io.sockets.sockets.size} connected client${
+          io.sockets.sockets.size !== 1 ? "s" : ""
+        }`
+      );
     }
   });
 
   socket.emit("INIT");
+
+  debug(
+    `${io.sockets.sockets.size} connected client${
+      io.sockets.sockets.size !== 1 ? "s" : ""
+    }`
+  );
 });
 
 pub.sadd(SERVER_IDS_KEY, instanceId); // add self to server list
@@ -305,7 +318,7 @@ app.post("/metrics", cors(corsOptions), bodyParser.text(), (req, res) => {
     res.sendStatus(400);
     return;
   }
-  debug("received metrics", metrics);
+  //debug("received metrics");
   res.sendStatus(200);
 });
 

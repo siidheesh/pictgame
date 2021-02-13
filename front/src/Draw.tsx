@@ -17,7 +17,7 @@ import PanToolIcon from "@material-ui/icons/PanTool";
 import { Icon } from "@iconify/react";
 import eraserIcon from "@iconify-icons/mdi/eraser";
 
-import Canvas, { Stroke } from "./Canvas";
+import Canvas, { Stroke, processStroke } from "./Canvas";
 import { CompactPicker } from "react-color";
 
 import { serialiseStrokes, deserialiseStrokes, debug, hexToRgb } from "./util";
@@ -27,7 +27,7 @@ interface DrawProps {
 }
 
 const rawPictgame2 =
-  '[["#d33115",4,300,"ADoAOwA6AEQAOABRADcAYQA3AGM="],["#d33115",4,300,"AD4AOgBHADMATwAzAFoAOgBaAEIAVQBKAE0ATgBDAE0APwBK"],["#e27300",4,300,"AIsAOQB9ADoAdgA7AHAAPABrAD0="],["#e27300",4,300,"AHkAPQB3AEwAdgBUAHYAWgB2AF4AdgBg"],["#e27300",4,300,"AIMAZgB0AGYAbgBmAGoAZQBoAGU="],["#fcc400",4,300,"AK8APgCjAEMAmwBPAJoAVgCbAF4AoABjAKcAZgCuAGcAsgBo"],["#68bc00",4,300,"AOsAPADXAD0A0QA9AM0APQDKAD8="],["#68bc00",4,300,"ANgAPwDYAEkA1wBTANcAXgDXAGk="],["#16a5a5",3,300,"AEsArQA+ALIAOQC5ADYAwAA0AMcAMwDOADMA0wA0ANcAOADYAD0A1QBDANAASADLAEoAxwBMAMoATADPAEwA0wBMANY="],["#16a5a5",3,300,"AFkAwQBMAMQARwDEAEMAxAA/AMMAPQDC"],["#009ce0",3,300,"AGMA1wBoAMsAbQDEAHEAvABzALYAdQCxAHYArwB3AK0AeACr"],["#009ce0",3,300,"AHkArAB9ALQAgAC8AIMAxACFAMwAhwDWAIgA2ACHANU="],["#009ce0",3,300,"AIEAxgB1AMUAcADGAG0AxgBpAMc="],["#7b64ff",3,300,"AJ8ArQCdAMAAnADMAJwA0ACbANIAnADQAJ0AywCeAMQAnwC8AKAAtQCiAK8AowCrAKYAqwCoALAAqgC3AKsAvwCrAMQAqwDHAKsAxACsAL4ArgC3ALEAsAC0AKsAtgCqALgArAC5ALIAuwC8ALwAxQC9AMwAvQDQ"],["#fa28ff",3,300,"AOEAqgDYAKoA1gCqANQArADTAK4A0wCxANIAtwDSAL0A0QDCANEAxwDRAMsA0QDNANAA0ADPANIA1ADSANkA0ADdANAA4ADPAOIAzw=="],["#fa28ff",3,300,"AOQAvwDaAL8A1gC+ANMAvg=="],["#000000",2,300,"AIkBAA=="],["#000000",2,300,"AIcBDQ=="],["#000000",2,300,"AJIA+QCYAQAAmQEDAJkBBgCZAQkAlgEQAJQBEgCSARQAkQEV"]]';
+  '[["#d33115",4,300,"[[59,73],[59,82],[57,95],[56,111],[56,113]]"],["#d33115",4,300,"[[61,71],[70,64],[78,64],[89,71],[89,79],[84,87],[76,91],[66,90],[62,87]]"],["#e27300",4,300,"[[146,66],[132,67],[125,68],[119,69],[114,70]]"],["#e27300",4,300,"[[129,74],[127,89],[126,97],[126,103],[126,107],[126,109]]"],["#e27300",4,300,"[[139,111],[124,111],[118,111],[114,110],[112,110]]"],["#fcc400",4,300,"[[183,66],[171,71],[163,83],[162,90],[163,98],[168,103],[175,106],[182,107],[186,108]]"],["#68bc00",4,300,"[[239,65],[219,66],[213,66],[209,66],[206,68]]"],["#68bc00",4,300,"[[223,70],[223,80],[222,90],[222,101],[222,112]]"],["#16a5a5",3,300,"[[77,168],[64,173],[59,180],[56,187],[54,194],[53,201],[53,206],[54,210],[58,211],[63,208],[69,203],[74,198],[76,194],[78,197],[78,202],[78,206],[78,209]]"],["#16a5a5",3,300,"[[93,188],[80,191],[75,191],[71,191],[67,190],[65,189]]"],["#009ce0",3,300,"[[101,210],[106,198],[111,191],[115,183],[117,177],[119,172],[120,170],[121,168],[122,166]]"],["#009ce0",3,300,"[[123,167],[127,175],[130,183],[133,191],[135,199],[137,209],[138,211],[137,208]]"],["#009ce0",3,300,"[[134,193],[122,192],[117,193],[114,193],[110,194]]"],["#7b64ff",3,300,"[[164,171],[162,190],[161,202],[161,206],[160,208],[161,206],[162,201],[163,194],[164,186],[165,179],[167,173],[168,169],[171,169],[173,174],[175,181],[176,189],[176,194],[176,197],[176,194],[177,188],[179,181],[182,174],[185,169],[187,168],[189,170],[190,176],[192,186],[193,195],[194,202],[194,206]]"],["#fa28ff",3,300,"[[232,165],[223,165],[221,165],[219,167],[218,169],[218,172],[217,178],[217,184],[216,189],[216,194],[216,198],[216,200],[215,203],[214,205],[219,205],[224,203],[228,203],[231,202],[233,202]]"],["#fa28ff",3,300,"[[234,185],[224,185],[220,184],[217,184]]"],["#000000",2,300,"[[145,254]]"],["#000000",2,300,"[[145,265]]"],["#000000",2,300,"[[156,246],[162,253],[163,255],[163,258],[163,261],[160,268],[158,270],[156,272],[155,273]]"]]';
 
 // TODO: replace canvas overlay with a circle in the cursor svg itself
 const getBrushCursor = (brushColour: string) =>
@@ -89,7 +89,7 @@ const Draw = (props: DrawProps) => {
     // BUG: need to preprocess displayedHistory to remove out-of-bounds points
     if (inputValid.description /*&& displayedHistory.length > 0*/)
       getProp("onSubmit")({
-        pic: displayedHistory,
+        pic: displayedHistory.flatMap(processStroke),
         label: description,
       });
   };
@@ -149,9 +149,9 @@ const Draw = (props: DrawProps) => {
     draggedStrokeHistory: Stroke[]
   ) => {
     if (!strokeIndexes || !draggedStrokeHistory) return;
-    debug("handleStrokeDone");
+    debug("handleDragDone", strokeIndexes);
     const newHistory = displayedHistory.map((stroke, idx) =>
-      idx in strokeIndexes && idx <= draggedStrokeHistory.length
+      strokeIndexes.includes(idx) && idx <= draggedStrokeHistory.length
         ? draggedStrokeHistory[idx]
         : stroke
     );
