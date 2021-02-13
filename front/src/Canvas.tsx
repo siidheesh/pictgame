@@ -291,7 +291,7 @@ export const processStroke = (stroke: Stroke): Stroke[] => {
  *
  * @component
  */
-function Canvas(props: any) {
+const Canvas = React.memo((props: any) => {
   const getProp = (prop: string) =>
     props[prop] ?? defaultProps[prop] ?? undefined;
 
@@ -326,7 +326,8 @@ function Canvas(props: any) {
       strokes: [] as StrokeIndexes,
       point: [0, 0] as Point,
     }),
-    draggedHistory = useRef([] as Stroke[]);
+    draggedHistory = useRef([] as Stroke[]),
+    wasLocked = useRef(isLocked);
 
   debug("Canvas render");
 
@@ -573,14 +574,18 @@ function Canvas(props: any) {
           drawOnCanvas(ctx, stroke, size, false)
         ); //manually call draw function
       } else {
-        animState.current = {
-          rafRef: window.requestAnimationFrame(handleFrame),
-          strokeIdx: 0,
-          pointIdx: 0,
-          lastCalled: 0,
-          currentDelay: 0,
-          initialDelay: getRandInRange(160, 240),
-        };
+        const rafRef = window.requestAnimationFrame(handleFrame),
+          initialDelay = getRandInRange(160, 240);
+        animState.current = wasLocked.current // don't reset indexes if we were locked, assume displayedHistory hasn't changed
+          ? { ...animState.current, rafRef, initialDelay }
+          : {
+              rafRef,
+              strokeIdx: 0,
+              pointIdx: 0,
+              lastCalled: 0,
+              currentDelay: 0,
+              initialDelay,
+            };
         return () => window.cancelAnimationFrame(animState.current.rafRef);
       }
 
@@ -646,6 +651,6 @@ function Canvas(props: any) {
       />
     </Paper>
   );
-}
+});
 
 export default Canvas;

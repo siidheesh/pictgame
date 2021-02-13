@@ -4,7 +4,7 @@ const PORT = process.env.PORT || 5000;
 
 const { nanoid } = require("nanoid");
 const instanceId = process.env.PORT || nanoid();
-
+const chalk = require("chalk");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const app = require("express")();
@@ -25,6 +25,7 @@ const {
   redisOpt,
   clientChannel,
   serverChannel,
+  raftChannel,
   SERVER_IDS_KEY,
   CLIENT_NAMES_KEY,
   generateUsername,
@@ -32,12 +33,12 @@ const {
 
 const pub = new Redis(redisOpt);
 const sub = new Redis(redisOpt);
-sub.subscribe(clientChannel, serverChannel);
+sub.subscribe(clientChannel, serverChannel, raftChannel);
 
-const { processRaftMsg, imTheLeader } = require("./raftMachine")(
-  instanceId,
-  pub
-);
+const playerLevelBinLength = 3;
+let waitingPlayers = Array(playerLevelBinLength)
+  .fill()
+  .map((x) => ({}));
 
 const msgType = Object.freeze({
   HELLO: 1,
@@ -49,10 +50,10 @@ const msgType = Object.freeze({
   INFORM_DISCONNECT: 7,
 });
 
-const playerLevelBinLength = 3;
-let waitingPlayers = Array(playerLevelBinLength)
-  .fill()
-  .map((x) => ({}));
+const serverMsgType = Object.freeze({
+  SERVER_UP: 1,
+  CLEARED_TO_START: 2,
+});
 
 const pubMsgIsValid = (msg) =>
   Array.isArray(msg) &&
@@ -67,6 +68,11 @@ const pubMsgIsValid = (msg) =>
     (msg[0] === msgType.NAME_DECREE && msg.length === 3) ||
     (msg[0] === msgType.INFORM_DISCONNECT && msg.length === 3));
 
+const serverMsgIsValid = (msg) =>
+  Array.isArray(msg) &&
+  ((msg[0] === serverMsgType.SERVER_UP && msg.length === 2) ||
+    (msg[0] === serverMsgType.CLEARED_TO_START && msg.length === 3));
+
 const processClientMsg = (origMsg) => {
   let msg = null;
   try {
@@ -77,8 +83,6 @@ const processClientMsg = (origMsg) => {
   }
 
   if (!pubMsgIsValid(msg)) return;
-
-  let found = false;
 
   switch (msg[0]) {
     case msgType.NAME_REQUEST: // msg: [type, source, instanceId]
@@ -93,7 +97,7 @@ const processClientMsg = (origMsg) => {
               .then((serverIds) =>
                 Promise.all(
                   serverIds.map((serverId) =>
-                    pub.sismember(`${CLIENT_NAMES_KEY}_${serverId}`, name)
+                    pub.hexists(`${CLIENT_NAMES_KEY}_${serverId}`, name)
                   )
                 )
               )
@@ -114,7 +118,8 @@ const processClientMsg = (origMsg) => {
               clientChannel,
               JSON.stringify([msgType.NAME_DECREE, msg[1], name])
             );
-            pub.sadd(`${CLIENT_NAMES_KEY}_${msg[2]}`, name);
+            // add key to client names hash, value representing the client's match
+            pub.hset(`${CLIENT_NAMES_KEY}_${msg[2]}`, name, null);
           })
           .catch(debug); // ignore errors
       }
@@ -156,7 +161,11 @@ const processClientMsg = (origMsg) => {
             (waitingPlayers[l].allowLower || origLevel >= l)
           ) {
             // match
-            debug(`asking ${msg[1]} to match with ${waitingPlayers[l].id}`);
+            debug(
+              chalk.green(
+                `asking ${msg[1]} to match with ${waitingPlayers[l].id}`
+              )
+            );
             pub.publish(
               clientChannel,
               JSON.stringify([
@@ -192,7 +201,8 @@ const processClientMsg = (origMsg) => {
       break;
     case msgType.INFORM_DISCONNECT: // msg: [type, source, target]
       // TODO: if a server crashes, the leader could publish all the clientnames of said server, informing their opps, if any, of their disconnection
-      if (imTheLeader) {
+      if (imTheLeader()) {
+        debug(chalk.yellow(`${msg[1]} disconnected, cleaning up`));
         // need to clear bin(s) referring to the disconnected player, if any
         waitingPlayers = waitingPlayers.map((bin) =>
           bin.id !== msg[1] ? bin : {}
@@ -210,7 +220,63 @@ const processClientMsg = (origMsg) => {
         }
       break;
     default:
-      debug(`unknown msg.type ${msg[0]}: ${JSON.stringify(msg)}`);
+      debug(chalk.red(`unknown msg.type ${msg[0]}: ${origMsg}`));
+      break;
+  }
+};
+
+// TODO: send and receive hb msgs on this channel
+const processServerMsg = (origMsg) => {
+  let msg = null;
+  try {
+    msg = JSON.parse(origMsg);
+  } catch (e) {
+    debug(e);
+    return;
+  }
+
+  if (!serverMsgIsValid(msg)) return;
+
+  switch (msg[0]) {
+    case serverMsgType.SERVER_UP: // msg: [type, source]
+      if (imTheLeader()) {
+        // assume server crashed and restarted, perform cleanup
+        debug(chalk.yellow.bold(msg[1], "spun up! cleaning up"));
+        pub.hgetall(`${CLIENT_NAMES_KEY}_${msg[1]}`).then((clients) => {
+          debug(`${msg[1]}'s prev clients:`, clients);
+          for (const id in clients) {
+            // pub INFORM_DISCONNECT for each client
+            if (id)
+              pub.publish(
+                clientChannel,
+                JSON.stringify([
+                  msgType.INFORM_DISCONNECT,
+                  id,
+                  clients[id] ?? null,
+                ])
+              );
+          }
+          pub.publish(
+            serverChannel,
+            JSON.stringify([serverMsgType.CLEARED_TO_START, instanceId, msg[1]])
+          );
+        });
+      }
+      break;
+    case serverMsgType.CLEARED_TO_START: // msg: [type, source, target]
+      // leader is ready for us to begin accepting clients
+      if (msg[2] === instanceId /*&& getLeader() === msg[1]*/) {
+        debug(chalk.green("ready to start"));
+        pub.del(`${CLIENT_NAMES_KEY}_${instanceId}`); // clear client list on start
+        if (!http.listening)
+          // start server
+          http.listen(PORT, () => {
+            debug(chalk.green(`server ${instanceId} listening on *:${PORT}`));
+          });
+      }
+      break;
+    default:
+      debug(chalk.red(`unknown serverMsg.type ${msg[0]}: ${origMsg}`));
       break;
   }
 };
@@ -220,8 +286,12 @@ sub.on("message", (chn, msg) => {
     case clientChannel:
       processClientMsg(msg);
       break;
-    case serverChannel:
+    case raftChannel:
       processRaftMsg(msg);
+      break;
+    case serverChannel:
+      processServerMsg(msg);
+    default:
       break;
   }
 });
@@ -252,10 +322,18 @@ io.on("connection", (socket) => {
   socket.on("MATCHED", (name) => {
     // client tells us who to inform if/when they deconnect
     socket.matchedWith = name;
+    if (socket.username)
+      pub.hset(
+        `${CLIENT_NAMES_KEY}_${instanceId}`,
+        socket.username,
+        socket.matchedWith
+      );
   });
 
   socket.on("UNMATCHED", () => {
     delete socket.matchedWith;
+    if (socket.username)
+      pub.hset(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username, null);
   });
 
   socket.on("DATA", (target, data) => {
@@ -276,12 +354,15 @@ io.on("connection", (socket) => {
           socket.matchedWith ?? null,
         ])
       );
-      pub.srem(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
+      // delete key from client names hash
+      pub.hdel(`${CLIENT_NAMES_KEY}_${instanceId}`, socket.username);
       debug(`${socket.username} disconnected`);
       debug(
-        `${io.sockets.sockets.size} connected client${
-          io.sockets.sockets.size !== 1 ? "s" : ""
-        }`
+        chalk.yellow.bold(
+          `${io.sockets.sockets.size} connected client${
+            io.sockets.sockets.size !== 1 ? "s" : ""
+          }`
+        )
       );
     }
   });
@@ -289,14 +370,15 @@ io.on("connection", (socket) => {
   socket.emit("INIT");
 
   debug(
-    `${io.sockets.sockets.size} connected client${
-      io.sockets.sockets.size !== 1 ? "s" : ""
-    }`
+    chalk.yellow.bold(
+      `${io.sockets.sockets.size} connected client${
+        io.sockets.sockets.size !== 1 ? "s" : ""
+      }`
+    )
   );
 });
 
 pub.sadd(SERVER_IDS_KEY, instanceId); // add self to server list
-pub.del(`${CLIENT_NAMES_KEY}_${instanceId}`); // clear client list on start
 
 app.set("trust proxy", 1);
 
@@ -327,18 +409,26 @@ app.get("/", (req, res) => {
   res.sendStatus(204);
 });
 
-http.listen(PORT, () => {
-  console.log(`server ${instanceId} listening on *:${PORT}`);
-});
+const handleLeaderChange = () => {
+  // reset waiting bins upon becoming leader
+  debug("in handleLeaderChange");
+  if (imTheLeader()) {
+    // clear waititng bins
+    waitingPlayers = Array(playerLevelBinLength)
+      .fill()
+      .map((x) => ({}));
+  }
+  if (!http.listening) {
+    debug(chalk.yellow("asking leader for clearance"));
+    pub.publish(
+      serverChannel,
+      JSON.stringify([serverMsgType.SERVER_UP, instanceId])
+    );
+  }
+};
 
-process.on("SIGINT", async () => {
-  /*debug("tearing down");
-  io.sockets.sockets.forEach((socket) => {
-    if (socket && socket.username) {
-      debug("removing", socket.username);
-      pub.srem(CLIENT_NAMES_KEY, socket.username);
-    }
-  });
-  debug("exiting");*/
-  process.exit();
-});
+const { processRaftMsg, imTheLeader, getLeader } = require("./raftMachine")(
+  instanceId,
+  pub,
+  handleLeaderChange
+);

@@ -21,11 +21,12 @@ const usernameConfig = {
 
 const generateUsername = () => uniqueNamesGenerator(usernameConfig);
 
-const SERVER_IDS_KEY = "pictgame_server_ids";
-const CLIENT_NAMES_KEY = "pictgame_client_names";
+const SERVER_IDS_KEY = "pgserv_ids";
+const CLIENT_NAMES_KEY = "pgclnt_ids";
 
-const clientChannel = "pictgame_clients";
-const serverChannel = "pictgame_servers";
+const clientChannel = "pgclnt";
+const serverChannel = "pgserv";
+const raftChannel = "pgraft";
 
 const makeid = (length) => {
   var result = "";
@@ -89,6 +90,7 @@ module.exports = {
   redisOpt,
   clientChannel,
   serverChannel,
+  raftChannel,
   SERVER_IDS_KEY,
   CLIENT_NAMES_KEY,
 };

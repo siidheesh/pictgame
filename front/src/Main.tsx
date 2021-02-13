@@ -97,7 +97,7 @@ const Start = (props: any) => {
       >
         <Canvas
           displayedHistory={image}
-          size={deviceIsSmall ? 300 : 400}
+          size={deviceIsSmall ? 200 : 300}
           animated={!animDone}
           locked={!animDone}
           onAnimDone={() => setAnimDone(true)}

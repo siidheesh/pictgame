@@ -14,9 +14,9 @@ const chalk = require("chalk");
 const { createMachine, assign, actions, interpret } = require("xstate");
 const { choose } = actions;
 
-const { hazard, getRandInRange, redisOpt, serverChannel } = require("./util");
+const { hazard, getRandInRange, redisOpt, raftChannel } = require("./util");
 
-module.exports = (id, pub) => {
+module.exports = (id, pub, onLeaderChange = () => {}) => {
   const raftMachine = createMachine(
     {
       initial: "follower",
@@ -37,7 +37,7 @@ module.exports = (id, pub) => {
         IMTHELEADER: {
           cond: "newerLeader",
           target: "follower",
-          actions: "leaderAssign",
+          actions: ["leaderAssign", onLeaderChange],
         },
         // these two are for testing
         BECOME_CANDIDATE: "startCandidacy",
@@ -51,7 +51,7 @@ module.exports = (id, pub) => {
               actions: choose([
                 {
                   cond: "leaderChanged",
-                  actions: "leaderAssign",
+                  actions: ["leaderAssign", onLeaderChange],
                 },
                 { actions: "updateHbParameters" },
               ]),
@@ -86,7 +86,10 @@ module.exports = (id, pub) => {
                 target: "candidate",
                 actions: "initVotes",
               },
-              { target: "leader", actions: "leaderAssignSelf" },
+              {
+                target: "leader",
+                actions: ["leaderAssignSelf", onLeaderChange],
+              },
             ],
           },
         },
@@ -119,7 +122,7 @@ module.exports = (id, pub) => {
             {
               cond: "majorityAchieved",
               target: "leader",
-              actions: "leaderAssignSelf",
+              actions: ["leaderAssignSelf", onLeaderChange],
             },
             { target: "candidate" },
           ],
@@ -161,7 +164,7 @@ module.exports = (id, pub) => {
           // this is a service because we'll use its resolved promise as voter count
           debug(chalk.red.bold("requesting vote for term", context.term));
           return pub.publish(
-            serverChannel,
+            raftChannel,
             JSON.stringify({
               type: "VOTE4ME",
               instanceId: context.instanceId,
@@ -178,7 +181,7 @@ module.exports = (id, pub) => {
       actions: {
         sendHeartbeat: (context, event) => {
           pub.publish(
-            serverChannel,
+            raftChannel,
             JSON.stringify({
               type: "IMTHELEADER",
               instanceId: context.instanceId,
@@ -188,7 +191,7 @@ module.exports = (id, pub) => {
         },
         vote: (context, event) => {
           pub.publish(
-            serverChannel,
+            raftChannel,
             JSON.stringify({
               type: "VOTE",
               instanceId: context.instanceId,
@@ -252,6 +255,7 @@ module.exports = (id, pub) => {
   const raftService = interpret(raftMachine).start();
 
   const imTheLeader = () => raftService.state.matches("leader");
+  const getLeader = () => raftService.state.context.leader;
 
   let prevLeader = "";
 
@@ -352,7 +356,7 @@ module.exports = (id, pub) => {
     }
   };
 
-  return { raftService, processRaftMsg, imTheLeader };
+  return { raftService, processRaftMsg, imTheLeader, getLeader };
 };
 
 //module.exports =
