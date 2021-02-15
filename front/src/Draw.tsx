@@ -248,7 +248,7 @@ const Draw = (props: DrawProps) => {
         </div>
         <ButtonGroup style={{ padding: "5px" }}>
           <Tooltip
-            title={eraseMode ? "Stop dragging" : "Start dragging"}
+            title={dragMode ? "Stop dragging" : "Start dragging"}
             aria-label="drag"
           >
             <ToggleButton
