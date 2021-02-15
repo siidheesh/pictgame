@@ -5,6 +5,7 @@ import { debug, useLocalStorage } from "./util";
 import Error from "./Error";
 import {
   Button,
+  ClickAwayListener,
   CssBaseline,
   Typography,
   useMediaQuery,
@@ -51,35 +52,41 @@ const OptionsFAB = (props: any) => {
   const { darkMode, onToggle } = props;
   return (
     <div className="fab">
-      <SpeedDial
-        ariaLabel="Options"
-        hidden={false}
-        icon={<MenuIcon />}
-        open={fabOpen}
-        direction={"right"}
-        onClick={() => setFabOpen(!fabOpen)}
+      <ClickAwayListener
+        mouseEvent="onMouseDown"
+        touchEvent="onTouchStart"
+        onClickAway={() => setFabOpen(false)}
       >
-        <SpeedDialAction
-          key={"github"}
-          icon={<GitHubIcon />}
-          tooltipTitle={"Github"}
-          onClick={() => window.open("https://github.com/siidheesh/pictgame")}
-        />
-        <SpeedDialAction
-          key={"bugreport"}
-          icon={<BugReportIcon />}
-          tooltipTitle={"Report a bug"}
-          onClick={() =>
-            window.open("https://github.com/siidheesh/pictgame/issues")
-          }
-        />
-        <SpeedDialAction
-          key={"darkMode"}
-          icon={darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-          tooltipTitle={darkMode ? "Light" : "Dark"}
-          onClick={onToggle}
-        />
-      </SpeedDial>
+        <SpeedDial
+          ariaLabel="Options"
+          hidden={false}
+          icon={<MenuIcon />}
+          open={fabOpen}
+          direction={"right"}
+          onClick={() => setFabOpen(!fabOpen)}
+        >
+          <SpeedDialAction
+            key={"github"}
+            icon={<GitHubIcon />}
+            tooltipTitle={"Github"}
+            onClick={() => window.open("https://github.com/siidheesh/pictgame")}
+          />
+          <SpeedDialAction
+            key={"bugreport"}
+            icon={<BugReportIcon />}
+            tooltipTitle={"Report a bug"}
+            onClick={() =>
+              window.open("https://github.com/siidheesh/pictgame/issues")
+            }
+          />
+          <SpeedDialAction
+            key={"darkMode"}
+            icon={darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+            tooltipTitle={darkMode ? "Light" : "Dark"}
+            onClick={onToggle}
+          />
+        </SpeedDial>
+      </ClickAwayListener>
     </div>
   );
 };
