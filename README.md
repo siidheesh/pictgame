@@ -1,7 +1,9 @@
 # Pictgame
 
-A pictionary-esque game built with react + redux in the front, and node/rust in the back
+A pictionary-esque game with a react + xstate frontend and node backend
 
-Written to better acquaint myself with the abovementioned frameworks/libraries
+Written to better acquaint myself with the abovementioned tech
 
-Still a work in progress!
+<s>Still a work in progress!</s> Project is now in beta! Check it out at pg.siid.sh
+
+Pics coming soon

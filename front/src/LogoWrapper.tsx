@@ -26,7 +26,7 @@ const LogoWrapper = (props: any) => {
       const fetchRandPic =
         keys.length < Math.min(totalPicCount.current, 5) // limit to <=5 unique pics
           ? () =>
-              fetch("https://api.siidhee.sh/randpic")
+              fetch("https://pgapi.siidh.sh/randpic")
                 .then((res) => res.json())
                 .then((data) => {
                   if (data.pic && data.name) {
