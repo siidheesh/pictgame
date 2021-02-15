@@ -67,6 +67,7 @@ const Game = (props: any) => {
   if (isDrawing) {
     component = (
       <Draw
+        displayedHistory={state.context.aliceData?.pic ?? []}
         name={state.context.target}
         onSubmit={(data: any) => send({ type: "SUBMIT_PIC", data })}
         onQuit={() => send("QUIT")}

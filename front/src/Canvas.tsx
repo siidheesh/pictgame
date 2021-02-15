@@ -37,6 +37,7 @@ const defaultProps: any = {
   onDrag: () => {},
   onDragDone: undefined, // restore canvas if undefined
   bgColour: "#fff",
+  boundingBoxDash: [5, 5],
 };
 
 /**
@@ -350,6 +351,7 @@ const Canvas = React.memo((props: any) => {
   const animated = getProp("animated");
   const dragMode = getProp("dragMode");
   const bgColour = getProp("bgColour");
+  const boundingBoxDash = getProp("boundingBoxDash");
 
   const onStrokeDone = getProp("onStrokeDone");
   //const onDrag = getProp("onDrag");
@@ -400,7 +402,10 @@ const Canvas = React.memo((props: any) => {
           };
           // compute, draw and store bounding boxes
           const ctx = overlayRef.current?.getContext("2d", { alpha: true });
-          if (ctx) ctx.clearRect(0, 0, size, size);
+          if (ctx) {
+            ctx.clearRect(0, 0, size, size);
+            ctx.setLineDash(boundingBoxDash);
+          }
           selectedStrokes.current.boundingBoxes = selectedStrokes.current.strokes.map(
             ctx
               ? (i) => {
@@ -425,7 +430,15 @@ const Canvas = React.memo((props: any) => {
         }
       }
     },
-    [brushColour, brushRadius, displayedHistory, dragMode, eraseMode, size]
+    [
+      boundingBoxDash,
+      brushColour,
+      brushRadius,
+      displayedHistory,
+      dragMode,
+      eraseMode,
+      size,
+    ]
   );
 
   const handlePaint = useCallback(
@@ -482,6 +495,7 @@ const Canvas = React.memo((props: any) => {
           const ctx2 = overlayRef.current?.getContext("2d", { alpha: true });
           if (ctx2) {
             ctx2.clearRect(0, 0, size, size);
+            ctx2.setLineDash(boundingBoxDash);
             selectedStrokes.current.boundingBoxes.forEach((bb) =>
               drawBoundingBox(ctx2, bb)
             );
@@ -521,7 +535,7 @@ const Canvas = React.memo((props: any) => {
         }
       }
     },
-    [brushRadius, dragMode, size, bgColour]
+    [dragMode, size, bgColour, boundingBoxDash, brushRadius]
   );
 
   const handlePaintEnd = useCallback(

@@ -48,6 +48,7 @@ export interface MainContext {
   bobGuess: string;
   oppDisconnected: boolean;
   online: boolean;
+  published: boolean;
 }
 
 //FIXME: find a new way to serialise strokes, old one had a signed overflow bug. using JSON for now

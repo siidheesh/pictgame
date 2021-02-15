@@ -21,7 +21,7 @@ import Brightness4Icon from "@material-ui/icons/Brightness4";
 import BugReportIcon from "@material-ui/icons/BugReport";
 
 import { Stroke } from "./Canvas";
-import LogoWrapper from "./LogoWrapper";
+import LogoWrapper, { logo } from "./LogoWrapper";
 import Loading from "./Loading";
 
 const Game = lazy(() => import("./Game"));
@@ -143,13 +143,14 @@ const Main = (props: any) => {
     return (
       <Suspense fallback={<Loading />}>
         <Draw
-          displayedHistory={state.context.aliceData?.pic ?? []}
+          displayedHistory={state.context.aliceData?.pic ?? logo}
           name={"fun!"}
           onQuit={() => send("QUIT")}
           onShare={() => send("PUB_DRAWING")}
           onDrawingChanged={(pic: Stroke[]) =>
             send({ type: "DRAWING_CHANGED", pic })
           }
+          published={state.context.published}
         />
       </Suspense>
     );

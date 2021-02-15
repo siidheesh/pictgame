@@ -62,6 +62,7 @@ const defaultProps: DrawProps = {
   onDrawingChanged: () => {},
   displayedHistory: logo,
   onShare: () => {},
+  published: true,
 };
 
 const Draw = (props: DrawProps) => {
@@ -78,9 +79,8 @@ const Draw = (props: DrawProps) => {
     deviceIsSmall ? getProp("brushRadiusSmall") : getProp("brushRadius")
   );
 
-  const [displayedHistory, setDisplayedHistory] = useState(
-    getProp("displayedHistory") as Stroke[]
-  ); // the strokes currently displayed (previously forcedHistory)
+  // the strokes currently displayed (previously forcedHistory)
+  const displayedHistory: Stroke[] = getProp("displayedHistory");
   const [strokeHistory, setStrokeHistory] = useState(
     getProp("displayedHistory") as Stroke[]
   ); // the strokes currently tracked (undo/redo)
@@ -104,10 +104,12 @@ const Draw = (props: DrawProps) => {
     setDescription(newDesc);
     setInputValid({ description: !!newDesc });
   };
+
   const onSubmit = getProp("onSubmit"),
     onQuit = getProp("onQuit"),
     onDrawingChanged = getProp("onDrawingChanged"),
-    onShare = getProp("onShare");
+    onShare = getProp("onShare"),
+    published = getProp("published");
 
   const handleSubmit = () => {
     // BUG: need to preprocess displayedHistory to remove out-of-bounds points
@@ -130,13 +132,13 @@ const Draw = (props: DrawProps) => {
   const handleUndo = () => {
     undoLevel.current = Math.min(strokeHistory.length, undoLevel.current + 1);
     debug("handleUndo", undoLevel.current);
-    setDisplayedHistory(sliceHistory());
+    onDrawingChanged(sliceHistory());
   };
 
   const handleRedo = () => {
     undoLevel.current = Math.max(0, undoLevel.current - 1);
     debug("handleRedo", undoLevel.current);
-    setDisplayedHistory(sliceHistory());
+    onDrawingChanged(sliceHistory());
   };
 
   const handleErase = () => {
@@ -148,7 +150,7 @@ const Draw = (props: DrawProps) => {
       undoLevel.current = -1; // a hack to restore previous strokeHistory on undo, if not yet committed
     }
     debug("handleErase", undoLevel.current);
-    setDisplayedHistory([]);
+    onDrawingChanged([] as Stroke[]);
   };
 
   // TODO: refactor all drawing logic into a statemachine
@@ -165,7 +167,6 @@ const Draw = (props: DrawProps) => {
     ];
     undoLevel.current = 0;
     setStrokeHistory(newHistory);
-    setDisplayedHistory(newHistory);
     onDrawingChanged(newHistory);
   };
 
@@ -181,7 +182,6 @@ const Draw = (props: DrawProps) => {
         : stroke
     );
     setStrokeHistory(newHistory);
-    setDisplayedHistory(newHistory);
     onDrawingChanged(newHistory);
   };
 
@@ -191,7 +191,10 @@ const Draw = (props: DrawProps) => {
     <div className="center header-padding">
       <PublishConfirmation
         open={showPubMsg}
-        onAccept={onShare}
+        onAccept={() => {
+          onShare();
+          setShowPubMsg(false);
+        }}
         onReject={() => setShowPubMsg(false)}
       />
       <div className="center-text mb50">
@@ -311,7 +314,9 @@ const Draw = (props: DrawProps) => {
         </div>
       )}
       {!onSubmit && displayedHistory.length > 0 && (
-        <Button onClick={() => setShowPubMsg(true)}>Publish my drawing</Button>
+        <Button onClick={() => setShowPubMsg(true)} disabled={published}>
+          Publish my drawing
+        </Button>
       )}
       <Button onClick={onQuit}>Quit</Button>
     </div>
