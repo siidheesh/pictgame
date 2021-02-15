@@ -29,6 +29,10 @@ const {
   SERVER_IDS_KEY,
   CLIENT_NAMES_KEY,
   generateUsername,
+  getRandInRange,
+  getPics,
+  readPic,
+  savePic,
 } = require("./util");
 
 const pub = new Redis(redisOpt);
@@ -193,8 +197,8 @@ const processClientMsg = (origMsg) => {
       break;
     case msgType.MATCH_DECREE: // msg: [type, source, target]
       for (const socket of io.sockets.sockets.values()) {
-        if (socket?.username === msg[2]) {
-          socket.emit("MATCH_DECREE", msg[1]);
+        if (socket?.username === msg[1]) {
+          socket.emit("MATCH_DECREE", msg[2]);
           break;
         }
       }
@@ -344,6 +348,23 @@ io.on("connection", (socket) => {
       );
   });
 
+  socket.on("PUBLISH", (pic) => {
+    // let users publish their pics
+    if (!socket.published) {
+      socket.published = true;
+      debug(chalk.green(socket.username, "published!"));
+      getPics()
+        .then((pics) =>
+          pics.length <= 100
+            ? Promise.resolve(pics)
+            : Promise.reject(new Error("at max capacity"))
+        )
+        .then(savePic(socket.username, pic))
+        .then(() => debug(`${socket.username}.json published`))
+        .catch((e) => debug(chalk.red.bold(e)));
+    }
+  });
+
   socket.on("disconnect", () => {
     if (socket.username) {
       pub.publish(
@@ -407,6 +428,26 @@ app.post("/metrics", cors(corsOptions), bodyParser.text(), (req, res) => {
 app.get("/", (req, res) => {
   //res.sendFile(__dirname + "/index.html");
   res.sendStatus(204);
+});
+
+app.get("/randpic", cors(corsOptions), (req, res) => {
+  // send random stored pic
+  let rand = "",
+    count = 0;
+  getPics()
+    .then((pics) => {
+      count = pics.length;
+      rand = pics[getRandInRange(0, count - 1)];
+      debug("/randpic", rand);
+      return readPic(rand);
+    })
+    .then((buf) => JSON.parse(buf.toString()))
+    .then((obj) =>
+      res
+        .type("application/json")
+        .send(JSON.stringify({ pic: obj.pic, name: rand, count }))
+    )
+    .catch((e) => debug(e));
 });
 
 const handleLeaderChange = () => {

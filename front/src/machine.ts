@@ -79,6 +79,14 @@ const mainMachine = createMachine<MainContext>(
         },
       ],
       ...errors,
+      DRAWING_CHANGED: {
+        actions: assign({
+          aliceData: (context, event) => ({
+            ...context.aliceData,
+            pic: event.pic,
+          }),
+        }),
+      },
     },
     states: {
       init: {
@@ -161,6 +169,7 @@ const mainMachine = createMachine<MainContext>(
         id: "idle",
         on: {
           MATCH: "match",
+          SINGLEPLAYER: "singlePlayer",
         },
       },
       match: {
@@ -169,10 +178,21 @@ const mainMachine = createMachine<MainContext>(
         on: {
           QUIT: "idle",
         },
+        entry: "clearCounter",
         onDone: "game",
         states: {
+          checkCounter: {
+            always: [
+              {
+                cond: "matchTimedOut",
+                actions: "clearCounter",
+                target: "timedOut",
+              },
+              { target: "waiting" },
+            ],
+          },
           waiting: {
-            entry: "sendMatchReq",
+            entry: ["sendMatchReq", "incrCounter"],
             on: {
               MATCH_CHECK: {
                 target: "handshake",
@@ -193,7 +213,7 @@ const mainMachine = createMachine<MainContext>(
                 ],
               },
             },
-            after: [{ delay: "matchWait", target: "waiting" }],
+            after: [{ delay: "matchWait", target: "checkCounter" }],
           },
           waitForConfirmation: {
             on: {
@@ -206,13 +226,17 @@ const mainMachine = createMachine<MainContext>(
                 }),
               },
             },
-            after: [{ delay: "matchConfirmation", target: "waiting" }],
+            after: [{ delay: "matchConfirmation", target: "checkCounter" }],
+          },
+          timedOut: {
+            on: {
+              MATCH: "waiting",
+              SINGLEPLAYER: "#singlePlayer",
+            },
           },
           handshake: {
             initial: "importBobKey",
-            on: {
-              HANDSHAKE_TIMEOUT: "waiting",
-            },
+            after: [{ delay: "handshakeTimeout", target: "checkCounter" }],
             states: {
               importBobKey: {
                 invoke: {
@@ -241,9 +265,6 @@ const mainMachine = createMachine<MainContext>(
               },
               testConnection: {
                 initial: "fork",
-                after: {
-                  2000: { actions: send("HANDSHAKE_TIMEOUT") },
-                },
                 states: {
                   fork: {
                     always: [
@@ -393,6 +414,10 @@ const mainMachine = createMachine<MainContext>(
             actions: "setOppDisconnected",
             cond: (context, event) => context.target === event.source,
           },
+          BOB_QUIT: {
+            actions: "setOppDisconnected",
+          },
+          SINGLEPLAYER: "singlePlayer",
         },
         states: {
           round: {
@@ -518,16 +543,33 @@ const mainMachine = createMachine<MainContext>(
           },
         },
       },
+      singlePlayer: {
+        id: "singlePlayer",
+        on: {
+          QUIT: "idle",
+          PUB_DRAWING: {
+            target: "idle",
+            actions: "publishDrawing",
+          },
+        },
+      },
       error: {},
     },
   },
   {
     delays: {
-      matchWait: () => getRandInRange(2000, 5000),
-      matchConfirmation: () => getRandInRange(800, 1000),
+      matchWait: () => getRandInRange(4000, 5000),
+      matchConfirmation: () => getRandInRange(1000, 1500),
+      handshakeTimeout: () => getRandInRange(2000, 2500),
+    },
+    guards: {
+      matchTimedOut: (context, _) => context.helloCounter >= 3, // send at most 8 MATCHREQs
     },
     actions: {
-      alertUser: () => alert("error!"),
+      clearCounter: assign({ helloCounter: (_) => 0 }),
+      incrCounter: assign({
+        helloCounter: (context) => context.helloCounter + 1,
+      }),
       connect: () => socket.connect(),
       sendNameReq: () => socket.emit("NAME_REQUEST"),
       sendMatchReq: (context) =>
@@ -598,6 +640,19 @@ const mainMachine = createMachine<MainContext>(
         socket.emit("DATA", context.target, { type: "REMATCH_OK" }),
       sendRematchReject: (context, _) =>
         socket.emit("DATA", context.target, { type: "REMATCH_REJECT" }),
+      publishDrawing: (context, _) => {
+        if (context.aliceData?.pic) {
+          try {
+            const pic = serialiseStrokes(context.aliceData.pic);
+            socket.emit(
+              "PUBLISH",
+              JSON.stringify({ ...context.aliceData, pic })
+            );
+          } catch (e) {
+            debug(e);
+          }
+        }
+      },
     },
   }
 );

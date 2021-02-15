@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from "react";
 import { Paper } from "@material-ui/core";
-import { debug, getRandInRange } from "./util";
+import { getRandInRange } from "./util";
 
 export type Point = [number, number];
 export type Vector = [number, number];
@@ -32,9 +32,11 @@ const defaultProps: any = {
   onStrokeDone: () => {},
   size: 400,
   animated: false,
-  dragMode: true,
+  dragMode: false,
   onAnimDone: () => {},
+  onDrag: () => {},
   onDragDone: undefined, // restore canvas if undefined
+  bgColour: "#fff",
 };
 
 /**
@@ -153,6 +155,46 @@ const pointInStroke = (test: Point, stroke: Stroke, size: number) => {
   }
 };
 
+// FIXME: refactor this along with the func above
+// TODO: calculate bounding box during handlePaintStart, and offset it along with the ref point
+const getBoundingBox = (stroke: Stroke, size: number): [Point, Point] => {
+  const points = stroke?.points;
+  //if (!points) return false; // should never be true
+  const ratio = size / stroke.size;
+  const scale = (x: number) => Math.floor(x * ratio);
+  const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
+  const radius = Math.max(1, scale(stroke.brushRadius));
+  const p0 = scalePoint(points[0]);
+
+  let topLeft: Point = [p0[0] - radius, p0[1] - radius],
+    bottomRight: Point = [p0[0] + radius, p0[1] + radius];
+  for (let i = 0; i < points.length; i++) {
+    const sp = scalePoint(points[i]);
+    // update stroke's bounding box
+    topLeft = [
+      Math.min(topLeft[0], sp[0] - radius),
+      Math.min(topLeft[1], sp[1] - radius),
+    ];
+    bottomRight = [
+      Math.max(bottomRight[0], sp[0] + radius),
+      Math.max(bottomRight[1], sp[1] + radius),
+    ];
+  }
+  return [topLeft, bottomRight];
+};
+
+const drawBoundingBox = (
+  ctx: CanvasRenderingContext2D,
+  [topLeft, bottomRight]: [Point, Point]
+) => {
+  ctx.strokeRect(
+    topLeft[0],
+    topLeft[1],
+    bottomRight[0] - topLeft[0],
+    bottomRight[1] - topLeft[1]
+  );
+};
+
 /**
  * Compute the border point given an in-bounds point and an out-of-bounds pounts
  * @param {Point} point1 Point 1
@@ -160,7 +202,7 @@ const pointInStroke = (test: Point, stroke: Stroke, size: number) => {
  * @param {number} size The current canvas size
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const calcBorderPoint = (point1: Point, point2: Point, size: number) => {
+/*const calcBorderPoint = (point1: Point, point2: Point, size: number) => {
   if (!point1 || !point2) return null;
   // get bounding box for point pair
   const topLeft: Point = [
@@ -201,7 +243,7 @@ const calcBorderPoint = (point1: Point, point2: Point, size: number) => {
   }
   //if (pointOnBorder) debug("borderpoint", topLeft, pointOnBorder, bottomRight);
   return pointOnBorder;
-};
+};*/
 
 /**
  * Process a Stroke for export
@@ -286,6 +328,7 @@ export const processStroke = (stroke: Stroke): Stroke[] => {
   }));
 };
 
+// TODO: sort strokes by a zIndex prop, for layering
 /**
  * Component for a canvas to draw and show drawings on
  *
@@ -306,15 +349,18 @@ const Canvas = React.memo((props: any) => {
   const isLocked = getProp("locked");
   const animated = getProp("animated");
   const dragMode = getProp("dragMode");
+  const bgColour = getProp("bgColour");
 
   const onStrokeDone = getProp("onStrokeDone");
+  //const onDrag = getProp("onDrag");
   const onDragDone = getProp("onDragDone");
   const onAnimDone = getProp("onAnimDone");
 
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
     overlayRef = useRef<HTMLCanvasElement>(document.createElement("canvas")),
-    drawMode = useRef(false),
-    animState = useRef({
+    drawMode = useRef(false), // TODO: rename drawMode to pointerDown or smth
+    anim = useRef({
+      // animation 'state'
       rafRef: 0,
       strokeIdx: 0,
       pointIdx: 0,
@@ -325,11 +371,9 @@ const Canvas = React.memo((props: any) => {
     selectedStrokes = useRef({
       strokes: [] as StrokeIndexes,
       point: [0, 0] as Point,
+      boundingBoxes: [] as [Point, Point][],
     }),
-    draggedHistory = useRef([] as Stroke[]),
-    wasLocked = useRef(isLocked);
-
-  debug("Canvas render");
+    draggedHistory = useRef([] as Stroke[]);
 
   const handlePaintStart = useCallback(
     (x: number, y: number) => {
@@ -343,6 +387,7 @@ const Canvas = React.memo((props: any) => {
           draggedHistory.current = JSON.parse(JSON.stringify(displayedHistory));
           // keep track of strokes under cursor position
           selectedStrokes.current = {
+            ...selectedStrokes.current,
             strokes: draggedHistory.current.reduceRight(
               (acc, stroke, idx) =>
                 !acc.length && // only drag the latest stroke for now
@@ -353,6 +398,19 @@ const Canvas = React.memo((props: any) => {
             ),
             point: canvasXY,
           };
+          // compute, draw and store bounding boxes
+          const ctx = overlayRef.current?.getContext("2d", { alpha: true });
+          if (ctx) ctx.clearRect(0, 0, size, size);
+          selectedStrokes.current.boundingBoxes = selectedStrokes.current.strokes.map(
+            ctx
+              ? (i) => {
+                  const bb = getBoundingBox(draggedHistory.current[i], size);
+                  drawBoundingBox(ctx, bb);
+                  return bb;
+                }
+              : (i) => getBoundingBox(draggedHistory.current[i], size)
+          );
+          //if (selectedStrokes.current?.strokes) onDrag();
         } else {
           currentStroke.current = {
             // start tracking stroke
@@ -387,8 +445,11 @@ const Canvas = React.memo((props: any) => {
             p2[1] - p1[1],
           ])(selectedStrokes.current.point, canvasXY);
 
+          const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+
           // loop through each selected stroke
-          for (const strokeIdx of selectedStrokes.current.strokes) {
+          for (const i in selectedStrokes.current.strokes) {
+            const strokeIdx = selectedStrokes.current.strokes[i];
             //reference to the stroke to be moved
             const selectedStroke = draggedHistory.current[strokeIdx];
             // the displacement vector ratio is inverse in this case
@@ -399,17 +460,31 @@ const Canvas = React.memo((props: any) => {
               p[0] + scale(dp[0]),
               p[1] + scale(dp[1]),
             ]);
+            //update bounding box
+            const bb = selectedStrokes.current.boundingBoxes[i];
+            if (bb) {
+              bb[0] = [bb[0][0] + dp[0], bb[0][1] + dp[1]];
+              bb[1] = [bb[1][0] + dp[0], bb[1][1] + dp[1]];
+            }
             // update reference point
             selectedStrokes.current.point = canvasXY;
             // show aftermath
-            const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+            // draw strokes
             if (ctx) {
-              ctx.fillStyle = "#fff";
+              ctx.fillStyle = bgColour;
               ctx.fillRect(0, 0, size, size);
               draggedHistory.current.forEach((stroke: Stroke) =>
                 drawOnCanvas(ctx, stroke, size, false)
               );
             }
+          }
+          // draw bounding boxes
+          const ctx2 = overlayRef.current?.getContext("2d", { alpha: true });
+          if (ctx2) {
+            ctx2.clearRect(0, 0, size, size);
+            selectedStrokes.current.boundingBoxes.forEach((bb) =>
+              drawBoundingBox(ctx2, bb)
+            );
           }
         } else {
           const prevPoint =
@@ -429,9 +504,7 @@ const Canvas = React.memo((props: any) => {
               points: [...currentStroke.current.points, canvasXY],
             };
             const ctx = canvasRef.current?.getContext("2d", { alpha: false });
-            if (ctx) {
-              drawOnCanvas(ctx, currentStroke.current, size);
-            }
+            if (ctx) drawOnCanvas(ctx, currentStroke.current, size);
           }
         }
       }
@@ -440,7 +513,6 @@ const Canvas = React.memo((props: any) => {
         // draw cursor indicator on overlay
         const ctx = overlayRef.current?.getContext("2d", { alpha: true });
         if (ctx) {
-          //debug("Drawing", x, y, brushColour);
           ctx.clearRect(0, 0, size, size);
           ctx.beginPath();
           ctx.strokeStyle = "#000";
@@ -449,7 +521,7 @@ const Canvas = React.memo((props: any) => {
         }
       }
     },
-    [brushRadius, dragMode, size]
+    [brushRadius, dragMode, size, bgColour]
   );
 
   const handlePaintEnd = useCallback(
@@ -468,11 +540,13 @@ const Canvas = React.memo((props: any) => {
                 selectedStrokes.current.strokes,
                 draggedHistory.current
               );
+              // clear selectedStrokes
+              selectedStrokes.current.strokes = [];
             } else {
               // no onDragDone handler, clear changes and revert back to displayedHistory
               const ctx = canvasRef.current?.getContext("2d", { alpha: false });
               if (ctx) {
-                ctx.fillStyle = "#fff";
+                ctx.fillStyle = bgColour;
                 ctx.fillRect(0, 0, size, size);
                 displayedHistory.forEach((stroke: Stroke) =>
                   drawOnCanvas(ctx, stroke, size, false)
@@ -483,32 +557,29 @@ const Canvas = React.memo((props: any) => {
         }
       }
 
-      if (clearOverlay && !dragMode) {
+      if (clearOverlay || dragMode) {
         const ctx = overlayRef.current?.getContext("2d", { alpha: true }); // has to be transparent
         if (ctx) ctx.clearRect(0, 0, size, size); // clear overlay
       }
     },
-    [displayedHistory, dragMode, onDragDone, onStrokeDone, size]
+    [displayedHistory, dragMode, onDragDone, onStrokeDone, size, bgColour]
   );
 
   // TODO: refactor the painting logic out of this
   const handleFrame = useCallback(
     (time: number) => {
-      if (!animState.current.lastCalled) {
-        animState.current.lastCalled = time;
-        animState.current.currentDelay = animState.current.initialDelay;
-      } else if (
-        time - animState.current.lastCalled >=
-        animState.current.currentDelay
-      ) {
-        animState.current.lastCalled = time;
+      if (!anim.current.lastCalled) {
+        anim.current.lastCalled = time;
+        anim.current.currentDelay = anim.current.initialDelay;
+      } else if (time - anim.current.lastCalled >= anim.current.currentDelay) {
+        anim.current.lastCalled = time;
 
-        const stroke = displayedHistory[animState.current.strokeIdx];
+        const stroke = displayedHistory[anim.current.strokeIdx];
         if (!stroke) return;
 
         const point =
-          displayedHistory[animState.current.strokeIdx].points[
-            animState.current.pointIdx
+          displayedHistory[anim.current.strokeIdx].points[
+            anim.current.pointIdx
           ];
         if (!point) return;
 
@@ -521,7 +592,7 @@ const Canvas = React.memo((props: any) => {
           const radius = Math.max(1, scale(stroke.brushRadius));
           const currentPoint = scalePoint(point);
 
-          if (stroke.points.length === 1 || animState.current.pointIdx === 0) {
+          if (stroke.points.length === 1 || anim.current.pointIdx === 0) {
             ctx.beginPath();
             ctx.fillStyle = stroke.colour;
             ctx.arc(currentPoint[0], currentPoint[1], radius, 0, 2 * Math.PI);
@@ -532,8 +603,8 @@ const Canvas = React.memo((props: any) => {
             ctx.strokeStyle = stroke.colour;
             ctx.beginPath();
             const prevPoint = scalePoint(
-              displayedHistory[animState.current.strokeIdx].points[
-                animState.current.pointIdx - 1
+              displayedHistory[anim.current.strokeIdx].points[
+                anim.current.pointIdx - 1
               ]
             ); // should never be nullish
             ctx.moveTo(prevPoint[0], prevPoint[1]);
@@ -542,56 +613,78 @@ const Canvas = React.memo((props: any) => {
           }
         }
 
-        animState.current.pointIdx += 1;
+        anim.current.pointIdx += 1;
 
-        if (animState.current.pointIdx >= stroke.points.length) {
+        if (anim.current.pointIdx >= stroke.points.length) {
           // move to next stroke
-          animState.current.pointIdx = 0;
-          animState.current.strokeIdx += 1;
-          animState.current.currentDelay = getRandInRange(160, 240);
-        } else animState.current.currentDelay = getRandInRange(0, 32);
+          anim.current.pointIdx = 0;
+          anim.current.strokeIdx += 1;
+          anim.current.currentDelay = getRandInRange(40, 120);
+        } else anim.current.currentDelay = getRandInRange(0, 32);
 
-        if (animState.current.strokeIdx >= displayedHistory.length) {
+        if (anim.current.strokeIdx >= displayedHistory.length) {
           // no more strokes
+          anim.current.rafRef = 0;
           onAnimDone();
           return;
         }
       }
-      animState.current.rafRef = window.requestAnimationFrame(handleFrame);
+      anim.current.rafRef = window.requestAnimationFrame(handleFrame);
     },
     [displayedHistory, size, onAnimDone]
   );
 
   useEffect(() => {
-    //clear and redraw on displayedHistory/size/animated change
     const ctx = canvasRef.current?.getContext("2d", { alpha: false });
     if (ctx) {
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = bgColour;
       ctx.fillRect(0, 0, size, size);
+      if (
+        anim.current.rafRef &&
+        anim.current.strokeIdx < displayedHistory.length
+      ) {
+        // we're rendering during an animation
+        // assume displayedHistory hasn't changed
 
-      if (!animated) {
-        displayedHistory.forEach((stroke: Stroke) =>
-          drawOnCanvas(ctx, stroke, size, false)
-        ); //manually call draw function
-      } else {
-        const rafRef = window.requestAnimationFrame(handleFrame),
-          initialDelay = getRandInRange(160, 240);
-        animState.current = wasLocked.current // don't reset indexes if we were locked, assume displayedHistory hasn't changed
-          ? { ...animState.current, rafRef, initialDelay }
-          : {
-              rafRef,
-              strokeIdx: 0,
-              pointIdx: 0,
-              lastCalled: 0,
-              currentDelay: 0,
-              initialDelay,
-            };
-        return () => window.cancelAnimationFrame(animState.current.rafRef);
+        // pause animation
+        window.cancelAnimationFrame(anim.current.rafRef);
+
+        // draw already-animated strokes
+        for (let i = 0; i < anim.current.strokeIdx; i++)
+          drawOnCanvas(ctx, displayedHistory[i], size, false);
+
+        // draw already-animated points of the currently-animated stroke
+        const stroke = displayedHistory[anim.current.strokeIdx];
+        const partialStroke = {
+          ...stroke,
+          points: stroke.points.slice(0, anim.current.pointIdx),
+        };
+        drawOnCanvas(ctx, partialStroke, size, false);
+
+        // resume animation
+        anim.current.rafRef = window.requestAnimationFrame(handleFrame);
       }
 
-      debug("Canvas redrew");
+      if (!animated) {
+        // draw displayedHistory as per normal
+        displayedHistory.forEach((s) => drawOnCanvas(ctx, s, size, false));
+      } else {
+        // start animation
+        if (!anim.current.rafRef)
+          // don't reset indexes if currently animating, assume displayedHistory hasn't changed
+          anim.current = {
+            rafRef: window.requestAnimationFrame(handleFrame),
+            strokeIdx: 0,
+            pointIdx: 0,
+            lastCalled: 0,
+            currentDelay: 0,
+            initialDelay: 0,
+          };
+
+        return () => window.cancelAnimationFrame(anim.current.rafRef);
+      }
     }
-  }, [displayedHistory, size, animated, handleFrame]);
+  }, [displayedHistory, size, animated, handleFrame, bgColour]);
 
   return (
     <Paper
@@ -601,19 +694,15 @@ const Canvas = React.memo((props: any) => {
         width: `${size}px`,
         height: `${size}px`,
         transform: "translateZ(0px)",
+        cursor: animated ? "wait" : dragMode ? "grab" : "inherit",
+        overflow: "hidden",
       }}
     >
       <canvas
         ref={canvasRef}
         height={size}
         width={size}
-        style={{
-          position: "absolute",
-          top: "0px",
-          left: "0px",
-          zIndex: 0,
-          backgroundColor: "white",
-        }}
+        style={{ zIndex: 0 }}
       />
       <canvas
         ref={overlayRef}
@@ -624,9 +713,9 @@ const Canvas = React.memo((props: any) => {
           top: "0px",
           left: "0px",
           zIndex: 1,
-          touchAction: isLocked ? "auto" : "none", // enabled touch scrolling if canvas is locked
+          touchAction: animated || !isLocked ? "none" : "auto", // enable touch scrolling if canvas is not animating or is locked
         }}
-        {...(isLocked // do not register event listeners if isLocked
+        {...(animated || isLocked // do not register event listeners if isLocked or animating
           ? {}
           : {
               onMouseDown: (e) => handlePaintStart(e.clientX, e.clientY),

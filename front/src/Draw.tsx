@@ -19,15 +19,12 @@ import eraserIcon from "@iconify-icons/mdi/eraser";
 
 import Canvas, { Stroke, processStroke } from "./Canvas";
 import { CompactPicker } from "react-color";
-
-import { serialiseStrokes, deserialiseStrokes, debug, hexToRgb } from "./util";
+import { logo } from "./LogoWrapper";
+import { serialiseStrokes, debug, hexToRgb } from "./util";
 
 interface DrawProps {
   [key: string]: any;
 }
-
-const rawPictgame2 =
-  '[["#d33115",4,300,"[[59,73],[59,82],[57,95],[56,111],[56,113]]"],["#d33115",4,300,"[[61,71],[70,64],[78,64],[89,71],[89,79],[84,87],[76,91],[66,90],[62,87]]"],["#e27300",4,300,"[[146,66],[132,67],[125,68],[119,69],[114,70]]"],["#e27300",4,300,"[[129,74],[127,89],[126,97],[126,103],[126,107],[126,109]]"],["#e27300",4,300,"[[139,111],[124,111],[118,111],[114,110],[112,110]]"],["#fcc400",4,300,"[[183,66],[171,71],[163,83],[162,90],[163,98],[168,103],[175,106],[182,107],[186,108]]"],["#68bc00",4,300,"[[239,65],[219,66],[213,66],[209,66],[206,68]]"],["#68bc00",4,300,"[[223,70],[223,80],[222,90],[222,101],[222,112]]"],["#16a5a5",3,300,"[[77,168],[64,173],[59,180],[56,187],[54,194],[53,201],[53,206],[54,210],[58,211],[63,208],[69,203],[74,198],[76,194],[78,197],[78,202],[78,206],[78,209]]"],["#16a5a5",3,300,"[[93,188],[80,191],[75,191],[71,191],[67,190],[65,189]]"],["#009ce0",3,300,"[[101,210],[106,198],[111,191],[115,183],[117,177],[119,172],[120,170],[121,168],[122,166]]"],["#009ce0",3,300,"[[123,167],[127,175],[130,183],[133,191],[135,199],[137,209],[138,211],[137,208]]"],["#009ce0",3,300,"[[134,193],[122,192],[117,193],[114,193],[110,194]]"],["#7b64ff",3,300,"[[164,171],[162,190],[161,202],[161,206],[160,208],[161,206],[162,201],[163,194],[164,186],[165,179],[167,173],[168,169],[171,169],[173,174],[175,181],[176,189],[176,194],[176,197],[176,194],[177,188],[179,181],[182,174],[185,169],[187,168],[189,170],[190,176],[192,186],[193,195],[194,202],[194,206]]"],["#fa28ff",3,300,"[[232,165],[223,165],[221,165],[219,167],[218,169],[218,172],[217,178],[217,184],[216,189],[216,194],[216,198],[216,200],[215,203],[214,205],[219,205],[224,203],[228,203],[231,202],[233,202]]"],["#fa28ff",3,300,"[[234,185],[224,185],[220,184],[217,184]]"],["#000000",2,300,"[[145,254]]"],["#000000",2,300,"[[145,265]]"],["#000000",2,300,"[[156,246],[162,253],[163,255],[163,258],[163,261],[160,268],[158,270],[156,272],[155,273]]"]]';
 
 // TODO: replace canvas overlay with a circle in the cursor svg itself
 const getBrushCursor = (brushColour: string) =>
@@ -35,16 +32,21 @@ const getBrushCursor = (brushColour: string) =>
     brushColour
   )}"></path><path d="M340.587,6.796c-8.615-8.614-22.425-9.1-31.624-1.112c-5.782,5.021-141.818,123.166-160.166,141.513 c-9.175,9.175-20.946,24.898-31.124,39.428l42.864,43.271c14.546-10.18,30.345-22.003,39.65-31.308 C218.749,180.024,336.69,44.193,341.703,38.42C349.688,29.22,349.201,15.41,340.587,6.796z" style="fill:brown"></path></g></g></svg>`;
 
+const defaultProps: DrawProps = {
+  brushRadius: 5,
+  brushRadiusMin: 1,
+  brushRadiusMax: 20,
+  brushRadiusStep: 1,
+  brushRadiusSmall: 3,
+  brushColour: "#000",
+  onSubmit: null,
+  onQuit: () => {},
+  onDrawingChanged: () => {},
+  displayedHistory: logo,
+  onShare: () => {},
+};
+
 const Draw = (props: DrawProps) => {
-  const defaultProps: DrawProps = {
-    brushRadius: 5,
-    brushRadiusMin: 1,
-    brushRadiusMax: 20,
-    brushRadiusStep: 1,
-    brushRadiusSmall: 3,
-    brushColour: "#000",
-    onSubmit: () => {},
-  };
   const getProp = (propName: string) => {
     return props[propName] ?? defaultProps[propName];
   };
@@ -58,12 +60,12 @@ const Draw = (props: DrawProps) => {
     deviceIsSmall ? getProp("brushRadiusSmall") : getProp("brushRadius")
   );
 
-  const defaultPic = useMemo(
-    () => deserialiseStrokes(JSON.parse(rawPictgame2)),
-    []
-  );
-  const [displayedHistory, setDisplayedHistory] = useState(defaultPic); // the strokes currently displayed (previously forcedHistory)
-  const [strokeHistory, setStrokeHistory] = useState(defaultPic); // the strokes currently tracked (undo/redo)
+  const [displayedHistory, setDisplayedHistory] = useState(
+    getProp("displayedHistory") as Stroke[]
+  ); // the strokes currently displayed (previously forcedHistory)
+  const [strokeHistory, setStrokeHistory] = useState(
+    getProp("displayedHistory") as Stroke[]
+  ); // the strokes currently tracked (undo/redo)
 
   const [description, setDescription] = useState("");
   const [inputValid, setInputValid] = useState({ description: false });
@@ -84,11 +86,15 @@ const Draw = (props: DrawProps) => {
     setDescription(newDesc);
     setInputValid({ description: !!newDesc });
   };
+  const onSubmit = getProp("onSubmit"),
+    onQuit = getProp("onQuit"),
+    onDrawingChanged = getProp("onDrawingChanged"),
+    onShare = getProp("onShare");
 
   const handleSubmit = () => {
     // BUG: need to preprocess displayedHistory to remove out-of-bounds points
-    if (inputValid.description /*&& displayedHistory.length > 0*/)
-      getProp("onSubmit")({
+    if (inputValid.description && onSubmit)
+      onSubmit({
         pic: displayedHistory.flatMap(processStroke),
         label: description,
       });
@@ -142,6 +148,7 @@ const Draw = (props: DrawProps) => {
     undoLevel.current = 0;
     setStrokeHistory(newHistory);
     setDisplayedHistory(newHistory);
+    onDrawingChanged(newHistory);
   };
 
   const handleDragDone = (
@@ -157,6 +164,7 @@ const Draw = (props: DrawProps) => {
     );
     setStrokeHistory(newHistory);
     setDisplayedHistory(newHistory);
+    onDrawingChanged(newHistory);
   };
 
   debug("Draw render");
@@ -279,37 +287,43 @@ const Draw = (props: DrawProps) => {
           </Button>
         </ButtonGroup>
       </div>
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: "10px",
-          visibility: displayedHistory.length > 0 ? "visible" : "hidden",
-        }}
-      >
-        <div style={{ marginBottom: "10px" }}>
-          <Typography
-            variant="h6"
-            onClick={() =>
-              debug(JSON.stringify(serialiseStrokes(displayedHistory)))
+      {onSubmit && (
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: "10px",
+            visibility: displayedHistory.length ? "visible" : "hidden", // hide if nothing drawn
+          }}
+        >
+          <div style={{ marginBottom: "10px" }}>
+            <Typography
+              variant="h6"
+              onClick={() =>
+                debug(JSON.stringify(serialiseStrokes(displayedHistory)))
+              }
+            >
+              What did you draw? 👀
+            </Typography>
+          </div>
+          <TextField
+            label="Describe your drawing!"
+            variant="outlined"
+            value={description}
+            onChange={handleDescChange}
+            helperText={
+              inputValid.description
+                ? "(press enter to lock in your drawing)"
+                : "Must be filled"
             }
-          >
-            What did you draw? 👀
-          </Typography>
+            error={!inputValid.description}
+            onKeyDown={handleKeyDown} //https://stackoverflow.com/questions/22473950/keypress-event-not-firing-in-android-mobile
+          />
         </div>
-        <TextField
-          label="Describe your drawing!"
-          variant="outlined"
-          value={description}
-          onChange={handleDescChange}
-          helperText={
-            inputValid.description
-              ? "(press enter to lock in your drawing)"
-              : "Must be filled"
-          }
-          error={!inputValid.description}
-          onKeyDown={handleKeyDown} //https://stackoverflow.com/questions/22473950/keypress-event-not-firing-in-android-mobile
-        />
-      </div>
+      )}
+      {!onSubmit && displayedHistory.length > 0 && (
+        <Button onClick={onShare}>Publish my drawing</Button>
+      )}
+      <Button onClick={onQuit}>Quit</Button>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Typography } from "@material-ui/core";
 import CheckCircleOutlineRoundedIcon from "@material-ui/icons/CheckCircleOutlineRounded";
 import { MainContext, debug } from "./util";
+import Error from "./Error";
 
 function CircularProgressWithLabel(props: any) {
   return (
@@ -25,21 +26,39 @@ function CircularProgressWithLabel(props: any) {
   );
 }
 
-const LookingForPlayers = (props: any) => {
-  const showNoPlayerMsgDelay = 3000;
-  const [showNoPlayersMsg, setShowNoPlayersMsg] = useState(false);
+const LookingForPlayers = React.memo((props: any) => {
+  const { showMsg, timedOut, onMatch, onSinglePlayer, onQuit } = props;
 
-  useEffect(() => {
-    debug("useff matchmaking");
-    const h = window.setTimeout(() => {
-      debug("useff matchmaking cb");
-      setShowNoPlayersMsg(true);
-    }, showNoPlayerMsgDelay);
-    return () => {
-      debug("useff matchmaking cleanup");
-      window.clearTimeout(h);
-    };
-  }, []);
+  if (timedOut) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          margin: "auto",
+          //border: "red dashed",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "30px" }}>
+          <Typography variant="h5" noWrap>
+            No players found 🙁
+          </Typography>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "center",
+          }}
+        >
+          <Button onClick={onMatch}>Try again</Button>
+          <Button onClick={onSinglePlayer}>Start drawing</Button>
+          <Button onClick={onQuit}>Quit</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -57,7 +76,7 @@ const LookingForPlayers = (props: any) => {
         </Typography>
         <Typography
           variant="subtitle1"
-          style={{ visibility: showNoPlayersMsg ? "visible" : "hidden" }}
+          style={{ visibility: showMsg ? "visible" : "hidden" }}
         >
           None found yet, we'll keep searching!
         </Typography>
@@ -67,7 +86,7 @@ const LookingForPlayers = (props: any) => {
       </div>
     </div>
   );
-};
+});
 
 const Acceptance = (props: any) => {
   const {
@@ -218,16 +237,30 @@ const Match = (props: any) => {
   const context: MainContext = state.context;
   const m = state.matches;
 
+  const timedOut = m("match.timedOut");
   const inMatchmaking =
     m("match.waiting") ||
     m("match.waitForConfirmation") ||
-    m("match.handshake");
+    m("match.handshake") ||
+    timedOut;
   const inAcceptance = m("match.acceptance");
 
   debug("Match render");
 
   if (inMatchmaking) {
-    return <LookingForPlayers />;
+    const handleMatch = () => send("MATCH");
+    const handleSinglePlayer = () => send("SINGLEPLAYER");
+    const handleQuit = () => send("QUIT");
+    const showMsg = state.context.helloCounter > 1;
+    return (
+      <LookingForPlayers
+        timedOut={timedOut}
+        showMsg={showMsg}
+        onMatch={handleMatch}
+        onSinglePlayer={handleSinglePlayer}
+        onQuit={handleQuit}
+      />
+    );
   }
 
   if (inAcceptance) {
@@ -252,7 +285,7 @@ const Match = (props: any) => {
     );
   }
 
-  return <div>match: unhandled {state.toStrings().join(" ")}</div>;
+  return <Error msg={`Unhandled state(s): ${state.toStrings().join(" ")}`} />;
 };
 
 export default Match;

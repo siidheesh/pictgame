@@ -7,9 +7,9 @@ import {
   Dialog,
   useMediaQuery,
 } from "@material-ui/core";
-
+import Error from "./Error";
 import Draw from "./Draw";
-import Canvas from "./Canvas";
+import Canvas, { Stroke } from "./Canvas";
 import { debug } from "./util";
 
 const Guess = (props: any) => {
@@ -278,13 +278,21 @@ const OppLeftGame = React.memo((props: any) => (
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        margin: "20px",
+        margin: "10px",
       }}
     >
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
         <Typography variant="h6">{props.name} left the game :(</Typography>
       </div>
-      <div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Button onClick={props.onSinglePlayer}>Continue</Button>
         <Button onClick={props.onMatch}>New Game</Button>
         <Button onClick={props.onQuit}>Quit</Button>
       </div>
@@ -304,7 +312,9 @@ const Game = (props: any) => {
 
   const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
 
-  let component = <div>game: unhandled {state.toStrings().join(" ")}</div>;
+  let component = (
+    <Error msg={`Unhandled state(s): ${state.toStrings().join(" ")}`} />
+  );
 
   debug("Game render");
 
@@ -313,6 +323,11 @@ const Game = (props: any) => {
       <Draw
         name={state.context.target}
         onSubmit={(data: any) => send({ type: "SUBMIT_PIC", data })}
+        onQuit={() => send("QUIT")}
+        onDrawingChanged={(pic: Stroke[]) =>
+          send({ type: "DRAWING_CHANGED", pic })
+        }
+        onShare={() => send("PUB_DRAWING")}
       />
     );
   } else if (waitingForDrawing || waitingForGuess) {
@@ -359,6 +374,7 @@ const Game = (props: any) => {
           open={state.context.oppDisconnected}
           name={state.context.target}
           onMatch={() => send("GOTO_MATCH")}
+          onSinglePlayer={() => send("SINGLEPLAYER")}
           onQuit={() => send("QUIT")}
         />
         {component}

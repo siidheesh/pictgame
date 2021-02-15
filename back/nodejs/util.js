@@ -1,5 +1,7 @@
 // TODO: move to consts.js
 // network congestions could cause hb timeouts if the message broker is not on the same machine as the server instances
+const fs = require("fs/promises");
+
 const redisOpt = {
   host: "192.168.1.65",
   port: 6379,
@@ -81,12 +83,30 @@ const getRandInRange = (min, max) => {
   return Math.floor(Math.random() * (max + 1 - min) + min);
 };
 
+const picDir = "pics";
+const jsonRegex = (f) => f.match(/\.json$/i);
+
+const getPics = () =>
+  fs.readdir(`./${picDir}`).then((files) => files.filter(jsonRegex));
+
+const readPic = (name) => fs.readFile(`./${picDir}/${name}`);
+
+// FIXME: actually validate
+const validatePic = (pic) =>
+  true ? Promise.resolve(pic) : Promise.reject(new Error("invalid pic format"));
+
+const savePic = (name, pic) =>
+  validatePic(pic).then(fs.writeFile(`./${picDir}/${name}.json`, pic));
+
 module.exports = {
   makeid,
   uuidv4,
   hazard,
   getRandInRange,
   generateUsername,
+  getPics,
+  readPic,
+  savePic,
   redisOpt,
   clientChannel,
   serverChannel,
