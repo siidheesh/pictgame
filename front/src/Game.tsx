@@ -1,85 +1,19 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense } from "react";
 import {
   Button,
   CircularProgress,
-  TextField,
   Typography,
   Dialog,
   useMediaQuery,
 } from "@material-ui/core";
 import Error from "./Error";
-import Draw from "./Draw";
-import Canvas, { Stroke } from "./Canvas";
+import { Stroke } from "./Canvas";
 import { debug } from "./util";
-
-const Guess = (props: any) => {
-  const { oppData, onGuess, deviceIsSmall } = props;
-  const [guess, setGuess] = useState("");
-  const [inputValid, setInputValid] = useState({ guess: false });
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e?.key === "Enter" || e?.code === "Enter" || e?.keyCode === 13) {
-      inputValid.guess && onGuess(guess);
-    }
-  };
-
-  const handleGuessChange = (
-    e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
-  ) => {
-    const newGuess = e.target.value;
-    setGuess(newGuess);
-    setInputValid({ guess: !!newGuess });
-  };
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        //border: "dashed",
-        alignItems: "center",
-        margin: "auto",
-        padding: "70px 10px 50px 10px",
-      }}
-    >
-      <div style={{ marginBottom: "50px" }}>
-        <Typography variant="h5" noWrap>
-          {oppData.name} drew this!
-        </Typography>
-      </div>
-      <Canvas
-        displayedHistory={oppData.pic}
-        size={deviceIsSmall ? 300 : 500}
-        locked
-      />
-      <div style={{ margin: "20px" }}>
-        <Typography variant="h5" noWrap>
-          What could it be? 🤔
-        </Typography>
-      </div>
-      <TextField
-        label="Your guess"
-        variant="outlined"
-        onKeyDown={handleKeyDown}
-        value={guess}
-        onChange={handleGuessChange}
-        helperText={
-          inputValid.guess
-            ? "(press enter to lock in your guess)"
-            : "Must be filled!"
-        }
-        error={!inputValid.guess}
-      />
-      <Typography
-        variant="caption"
-        noWrap
-        style={{ visibility: guess ? "visible" : "hidden" }}
-      >
-        {false && "(press enter to lock in your guess)"}
-      </Typography>
-    </div>
-  );
-};
+import Loading from "./Loading";
+import Draw from "./Draw";
+const Guess = lazy(() => import("./Guess"));
+const Result = lazy(() => import("./Result"));
+const UserOffline = lazy(() => import("./UserOffline"));
 
 const AwaitBob = React.memo((props: any) => {
   const { name } = props;
@@ -105,172 +39,6 @@ const AwaitBob = React.memo((props: any) => {
   );
 });
 
-const ResultRematchWait = React.memo((props: any) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      margin: "20px",
-    }}
-  >
-    <div style={{ textAlign: "center", marginBottom: "20px" }}>
-      <Typography variant="h6">Waiting for {props.name}</Typography>
-    </div>
-    <CircularProgress color="primary" />
-  </div>
-));
-
-const ResultRematchDecide = React.memo((props: any) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      margin: "20px",
-    }}
-  >
-    <div style={{ textAlign: "center", marginBottom: "20px" }}>
-      <Typography variant="h6">{props.name} wants a rematch ❗</Typography>
-    </div>
-    <div>
-      <Button onClick={props.onAccept}>✅</Button>
-      <Button onClick={props.onReject}>❌</Button>
-    </div>
-  </div>
-));
-
-const Result = React.memo((props: any) => {
-  const {
-    aliceGuess,
-    bobGuess,
-    aliceData,
-    oppData,
-    bobName,
-    onRematch,
-    onRematchAck,
-    onNewGame,
-    onQuit,
-    onRematchReject,
-    rematchModal,
-    rematchModalType,
-    rematchAvailable,
-    deviceIsSmall,
-  } = props;
-
-  return (
-    <>
-      <Dialog open={rematchModal} aria-labelledby="" aria-describedby="">
-        {rematchModal &&
-          (rematchModalType ? (
-            <ResultRematchWait name={bobName} />
-          ) : (
-            <ResultRematchDecide
-              name={bobName}
-              onAccept={onRematchAck}
-              onReject={onRematchReject}
-            />
-          ))}
-      </Dialog>
-
-      <div
-        style={{
-          margin: "auto",
-          display: "flex",
-          flexDirection: "column",
-          //border: "dashed",
-          padding: "70px 5px 50px 5px",
-        }}
-      >
-        <div style={{ marginBottom: "50px" }}>
-          <Typography variant="h4" align="center">
-            Who won? Who lost? You decide! 🥳
-          </Typography>
-        </div>
-        <div
-          style={{
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            boxSizing: "inherit",
-            justifyContent: "center",
-            alignItems: "center",
-            //border: "red dashed",
-          }}
-        >
-          <div
-            style={{
-              //border: "blue dashed",
-              padding: "10px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ marginBottom: "20px" }}>
-              <Typography variant="h5">Your guess:</Typography>
-              <Typography variant="h6">{aliceGuess}</Typography>
-            </div>
-            <Canvas
-              displayedHistory={oppData.pic}
-              size={deviceIsSmall ? 300 : 500}
-              locked
-            />
-            <div style={{ margin: "20px" }}>
-              <Typography variant="subtitle1">
-                According to {bobName}, it's:
-              </Typography>
-              <Typography variant="subtitle1">{oppData.label}</Typography>
-            </div>
-          </div>
-
-          <div
-            style={{
-              //border: "orange dashed",
-              padding: "10px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ marginBottom: "20px" }}>
-              <Typography variant="h5">{bobName}'s guess:</Typography>
-              <Typography variant="h6">{bobGuess}</Typography>
-            </div>
-            <Canvas
-              displayedHistory={aliceData.pic}
-              size={deviceIsSmall ? 300 : 500}
-              locked
-            />
-            <div style={{ margin: "20px" }}>
-              <Typography variant="subtitle1">
-                According to you, it's:
-              </Typography>
-              <Typography variant="subtitle1">{aliceData.label}</Typography>
-            </div>
-          </div>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Button onClick={onRematch} disabled={!rematchAvailable}>
-            {rematchAvailable ? "Ask for Rematch" : "Opponent has left"}
-          </Button>
-          <Button onClick={onNewGame}>New Game</Button>
-          <Button onClick={onQuit}>Quit</Button>
-        </div>
-      </div>
-    </>
-  );
-});
-
 const OppLeftGame = React.memo((props: any) => (
   <Dialog open={props.open} aria-labelledby="" aria-describedby="">
     <div
@@ -278,7 +46,7 @@ const OppLeftGame = React.memo((props: any) => (
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        margin: "10px",
+        margin: "20px",
       }}
     >
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
@@ -339,11 +107,13 @@ const Game = (props: any) => {
       send({ type: "ALICE_GUESSED", guess });
 
     component = (
-      <Guess
-        onGuess={handleGuess}
-        oppData={{ ...state.context.oppData, name: state.context.target }}
-        deviceIsSmall={deviceIsSmall}
-      />
+      <Suspense fallback={<Loading />}>
+        <Guess
+          onGuess={handleGuess}
+          oppData={{ ...state.context.oppData, name: state.context.target }}
+          deviceIsSmall={deviceIsSmall}
+        />
+      </Suspense>
     );
   }
 
@@ -355,7 +125,9 @@ const Game = (props: any) => {
       oppData: state.context.oppData,
       bobName: state.context.target,
       rematchAvailable:
-        !state.context.oppDisconnected && !m("game.result.noRematch"),
+        state.context.online &&
+        !state.context.oppDisconnected &&
+        !m("game.result.noRematch"),
       rematchModal:
         m("game.result.waitForBob") || m("game.result.waitForDecision"),
       rematchModalType: m("game.result.waitForBob"),
@@ -366,7 +138,11 @@ const Game = (props: any) => {
       onQuit: () => send("QUIT"),
       deviceIsSmall,
     };
-    return <Result {...resultProps} />;
+    return (
+      <Suspense fallback={<Loading />}>
+        <Result {...resultProps} />
+      </Suspense>
+    );
   } else
     return (
       <>
@@ -374,6 +150,11 @@ const Game = (props: any) => {
           open={state.context.oppDisconnected}
           name={state.context.target}
           onMatch={() => send("GOTO_MATCH")}
+          onSinglePlayer={() => send("SINGLEPLAYER")}
+          onQuit={() => send("QUIT")}
+        />
+        <UserOffline
+          open={!state.context.online}
           onSinglePlayer={() => send("SINGLEPLAYER")}
           onQuit={() => send("QUIT")}
         />

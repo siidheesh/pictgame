@@ -1,13 +1,10 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { useService } from "@xstate/react";
 import { mainService } from "./machine";
 import { debug, useLocalStorage } from "./util";
-import Game from "./Game";
-import Match from "./Match";
 import Error from "./Error";
 import {
   Button,
-  CircularProgress,
   CssBaseline,
   Typography,
   useMediaQuery,
@@ -16,39 +13,34 @@ import {
 import { ThemeProvider, createMuiTheme } from "@material-ui/core/styles";
 import SpeedDial from "@material-ui/lab/SpeedDial";
 import SpeedDialAction from "@material-ui/lab/SpeedDialAction";
-import SettingsIcon from "@material-ui/icons/Settings";
+import MenuIcon from "@material-ui/icons/Menu";
 import GitHubIcon from "@material-ui/icons/GitHub";
 import Brightness7Icon from "@material-ui/icons/Brightness7";
 import Brightness4Icon from "@material-ui/icons/Brightness4";
 import BugReportIcon from "@material-ui/icons/BugReport";
 
 import { Stroke } from "./Canvas";
-import Draw from "./Draw";
 import LogoWrapper from "./LogoWrapper";
+import Loading from "./Loading";
 
-const Loading = React.memo((props: any) => (
-  <div
-    style={{
-      margin: "auto",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-    }}
-  >
-    <Typography variant="h5">{props.msg}</Typography>
-    <CircularProgress style={{ margin: "10px 0 10px 0" }} />
-  </div>
-));
+const Game = lazy(() => import("./Game"));
+const Match = lazy(() => import("./Match"));
+const Draw = lazy(() => import("./Draw"));
+const UserOffline = lazy(() => import("./UserOffline"));
 
 const Start = React.memo((props: any) => {
-  const { name, onStart, onSinglePlayer } = props;
+  const { name, onStart, onSinglePlayer, online } = props;
 
   return (
     <>
-      <Typography variant="h5">Welcome, {name}!</Typography>
+      <Typography variant="h5">
+        {name ? `Welcome, ${name}!` : "Welcome!"}
+      </Typography>
       <div style={{ margin: "10px 0 10px 0" }}>
         <Button onClick={onSinglePlayer}>Start drawing</Button>
-        <Button onClick={onStart}>Play with others</Button>
+        <Button onClick={onStart} disabled={!online}>
+          {online ? "Play with others" : "Connecting"}
+        </Button>
       </div>
     </>
   );
@@ -72,7 +64,7 @@ const OptionsFAB = (props: any) => {
       <SpeedDial
         ariaLabel="Options"
         hidden={false}
-        icon={<SettingsIcon />}
+        icon={<MenuIcon />}
         open={fabOpen}
         direction={"right"}
         onClick={() => setFabOpen(!fabOpen)}
@@ -118,22 +110,12 @@ const Main = (props: any) => {
 
   const logoWrapperProps = { darkMode, deviceIsSmall };
 
-  if (inInit) {
-    let msg = "Loading...";
-    if (state.context.name) {
-      // we were previously connected
-      msg = "Lost connection to server, re-establishing...";
-    } else if (m("init.prepareSocket.disconnected")) {
-      msg = "Establishing connection";
-    } else if (m("init.prepareSocket.waitForName")) {
-      msg = "Starting session";
-    }
+  if (inInit)
     return (
       <LogoWrapper {...logoWrapperProps}>
-        <Loading msg={msg} />
+        <Loading />
       </LogoWrapper>
     );
-  }
 
   if (inError) {
     return <Error msg={state.context.errorMsg} />;
@@ -146,6 +128,7 @@ const Main = (props: any) => {
       <LogoWrapper {...logoWrapperProps}>
         <Start
           name={state.context.name}
+          online={state.context.online}
           onStart={handleStart}
           onSinglePlayer={handleSinglePlayer}
         />
@@ -153,21 +136,38 @@ const Main = (props: any) => {
     );
   }
 
-  if (isMatchmaking) return <Match {...{ state, send }} />;
+  if (isMatchmaking)
+    return (
+      <Suspense fallback={<Loading />}>
+        <UserOffline
+          open={!state.context.online}
+          onSinglePlayer={() => send("SINGLEPLAYER")}
+          onQuit={() => send("QUIT")}
+        />
+        <Match {...{ state, send }} />
+      </Suspense>
+    );
 
-  if (inGame) return <Game {...{ state, send }} />;
+  if (inGame)
+    return (
+      <Suspense fallback={<Loading />}>
+        <Game {...{ state, send }} />
+      </Suspense>
+    );
 
   if (inSinglePlayer)
     return (
-      <Draw
-        displayedHistory={state.context.aliceData?.pic ?? []}
-        name={"fun!"}
-        onQuit={() => send("QUIT")}
-        onShare={() => send("PUB_DRAWING")}
-        onDrawingChanged={(pic: Stroke[]) =>
-          send({ type: "DRAWING_CHANGED", pic })
-        }
-      />
+      <Suspense fallback={<Loading />}>
+        <Draw
+          displayedHistory={state.context.aliceData?.pic ?? []}
+          name={"fun!"}
+          onQuit={() => send("QUIT")}
+          onShare={() => send("PUB_DRAWING")}
+          onDrawingChanged={(pic: Stroke[]) =>
+            send({ type: "DRAWING_CHANGED", pic })
+          }
+        />
+      </Suspense>
     );
 
   return <Error msg={`Unhandled state(s): ${state.toStrings().join(" ")}`} />;
@@ -179,10 +179,11 @@ const ThemeWrapper = (props: any) => {
     "darkMode",
     null
   );
+  const currentDarkMode = darkMode ?? prefersDarkMode;
 
   const theme = createMuiTheme({
     palette: {
-      type: darkMode ?? prefersDarkMode ? "dark" : "light",
+      type: currentDarkMode ? "dark" : "light",
       primary: {
         main: "#1a9ace",
       },
@@ -199,8 +200,11 @@ const ThemeWrapper = (props: any) => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <OptionsFAB {...{ darkMode }} onToggle={() => setDarkMode(!darkMode)} />
-      {props.children(darkMode)}
+      <OptionsFAB
+        darkMode={currentDarkMode}
+        onToggle={() => setDarkMode(!currentDarkMode)}
+      />
+      {props.children(currentDarkMode)}
     </ThemeProvider>
   );
 };

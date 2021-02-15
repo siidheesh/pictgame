@@ -52,6 +52,7 @@ const mainMachine = createMachine<MainContext>(
     id: "main",
     strict: true,
     initial: "init",
+    entry: "connect",
     context: {
       errorMsg: "",
       myPrivateKey: undefined,
@@ -70,14 +71,21 @@ const mainMachine = createMachine<MainContext>(
       aliceGuess: "",
       bobGuess: "",
       oppDisconnected: false,
+      online: false,
     },
     on: {
-      DISCONNECT: [
-        {
-          target: "init",
-          //cond: (context, _) => context.myPrivateKey && context.myPublicKey,
-        },
-      ],
+      CONNECTED: {
+        actions: ["sendNameReq"],
+      },
+      NAME_DECREE: {
+        actions: assign({
+          online: (_) => true,
+          name: (_, event) => event.name,
+        }),
+      },
+      DISCONNECTED: {
+        actions: assign({ online: (_) => false, name: (_) => "" }),
+      },
       ...errors,
       DRAWING_CHANGED: {
         actions: assign({
@@ -90,79 +98,40 @@ const mainMachine = createMachine<MainContext>(
     },
     states: {
       init: {
-        type: "parallel",
+        initial: "generatingKeys",
         onDone: "idle",
         states: {
-          prepareKeys: {
-            initial: "generatingKeys",
-            states: {
-              generatingKeys: {
-                invoke: {
-                  id: "generateKeyPair",
-                  src: generateKeyPair,
-                  onDone: {
-                    target: "exportRawKey",
-                    actions: assign({
-                      myPrivateKey: (_, event) => event.data.privateKey,
-                    }),
-                  },
-                  onError: {
-                    actions: send("ERR_GEN_KEYS"),
-                  },
-                },
+          generatingKeys: {
+            invoke: {
+              id: "generateKeyPair",
+              src: generateKeyPair,
+              onDone: {
+                target: "exportRawKey",
+                actions: assign({
+                  myPrivateKey: (_, event) => event.data.privateKey,
+                }),
               },
-              exportRawKey: {
-                invoke: {
-                  id: "exportRawKey",
-                  src: exportRawKey,
-                  onDone: {
-                    target: "ready",
-                    actions: assign({
-                      myPublicKey: (_, event) => event.data,
-                    }),
-                  },
-                  onError: {
-                    actions: send("ERR_EXPORT_KEYS"),
-                  },
-                },
+              onError: {
+                actions: send("ERR_GEN_KEYS"),
               },
-              ready: { type: "final" },
             },
           },
-          prepareSocket: {
-            initial: "disconnected",
-            states: {
-              disconnected: {
-                on: {
-                  CONNECTED: "waitForName",
-                },
-                always: [
-                  {
-                    cond: (_) => socket.connected,
-                    target: "waitForName",
-                  },
-                ],
-                after: {
-                  500: { target: "disconnected", actions: "connect" },
-                },
+          exportRawKey: {
+            invoke: {
+              id: "exportRawKey",
+              src: exportRawKey,
+              onDone: {
+                target: "ready",
+                actions: assign({
+                  myPublicKey: (_, event) => event.data,
+                }),
               },
-              waitForName: {
-                entry: "sendNameReq",
-                on: {
-                  NAME_DECREE: {
-                    target: "ready",
-                    actions: assign({
-                      name: (_, event) => event.name,
-                    }),
-                  },
-                },
-                after: {
-                  1000: { target: "waitForName" },
-                },
+              onError: {
+                actions: send("ERR_EXPORT_KEYS"),
               },
-              ready: { type: "final" },
             },
           },
+          ready: { type: "final" },
         },
       },
       idle: {
@@ -772,5 +741,5 @@ socket.on("INFORM_DISCONNECT", (source: string) => {
 });
 
 socket.on("disconnect", () => {
-  mainService.send("DISCONNECT");
+  mainService.send("DISCONNECTED");
 });
