@@ -147,14 +147,14 @@ const Game = (props: any) => {
     return (
       <>
         <OppLeftGame
-          open={state.context.oppDisconnected}
+          open={state.context.target && state.context.oppDisconnected}
           name={state.context.target}
           onMatch={() => send("GOTO_MATCH")}
           onSinglePlayer={() => send("SINGLEPLAYER")}
           onQuit={() => send("QUIT")}
         />
         <UserOffline
-          open={!state.context.online}
+          open={!state.context.online || !state.context.target}
           onSinglePlayer={() => send("SINGLEPLAYER")}
           onQuit={() => send("QUIT")}
         />

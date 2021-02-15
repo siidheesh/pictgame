@@ -84,7 +84,12 @@ const mainMachine = createMachine<MainContext>(
         }),
       },
       DISCONNECTED: {
-        actions: assign({ online: (_) => false, name: (_) => "" }),
+        actions: assign({
+          online: (_) => false,
+          name: (_) => "",
+          target: (_) => "",
+          oppDisconnected: (_) => true,
+        }),
       },
       ...errors,
       DRAWING_CHANGED: {
@@ -269,7 +274,7 @@ const mainMachine = createMachine<MainContext>(
                           },
                         },
                         after: {
-                          500: { target: "sendTest" },
+                          1000: { target: "sendTest" },
                         },
                       },
                       checkTest: {
