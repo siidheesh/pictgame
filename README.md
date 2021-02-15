@@ -1,3 +1,5 @@
+![Pictgame logo](./pictgame.png "Pictgame")
+
 # Pictgame
 
 A pictionary-esque game with a react + xstate frontend and node backend
