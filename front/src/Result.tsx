@@ -8,15 +8,8 @@ import {
 import Canvas from "./Canvas";
 
 const ResultRematchWait = React.memo((props: any) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      margin: "20px",
-    }}
-  >
-    <div style={{ textAlign: "center", marginBottom: "20px" }}>
+  <div className="center m20">
+    <div className="center-text mb20">
       <Typography variant="h6">Waiting for {props.name}</Typography>
     </div>
     <CircularProgress color="primary" />
@@ -24,18 +17,11 @@ const ResultRematchWait = React.memo((props: any) => (
 ));
 
 const ResultRematchDecide = React.memo((props: any) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      margin: "20px",
-    }}
-  >
-    <div style={{ textAlign: "center", marginBottom: "20px" }}>
+  <div className="center m20">
+    <div className="center-text mb20">
       <Typography variant="h6">{props.name} wants a rematch ❗</Typography>
     </div>
-    <div>
+    <div className="center-row wrap">
       <Button onClick={props.onAccept}>✅</Button>
       <Button onClick={props.onReject}>❌</Button>
     </div>
@@ -79,42 +65,15 @@ const Result = React.memo((props: any) => {
           ))}
       </Dialog>
 
-      <div
-        style={{
-          margin: "auto",
-          display: "flex",
-          flexDirection: "column",
-          //border: "dashed",
-          padding: "70px 5px 50px 5px",
-        }}
-      >
-        <div style={{ marginBottom: "50px" }}>
-          <Typography variant="h4" align="center">
+      <div className="center header-padding">
+        <div className="center-text mb50">
+          <Typography variant="h4">
             Who won? Who lost? You decide! 🥳
           </Typography>
         </div>
-        <div
-          style={{
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            boxSizing: "inherit",
-            justifyContent: "center",
-            alignItems: "center",
-            //border: "red dashed",
-          }}
-        >
-          <div
-            style={{
-              //border: "blue dashed",
-              padding: "10px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ marginBottom: "20px" }}>
+        <div className="center-row wrap center-text">
+          <div className="center p10">
+            <div className="mb20">
               <Typography variant="h5">Your guess:</Typography>
               <Typography variant="h6">{aliceGuess}</Typography>
             </div>
@@ -123,7 +82,7 @@ const Result = React.memo((props: any) => {
               size={deviceIsSmall ? 300 : 500}
               locked
             />
-            <div style={{ margin: "20px" }}>
+            <div className="m20">
               <Typography variant="subtitle1">
                 According to {bobName}, it's:
               </Typography>
@@ -131,16 +90,8 @@ const Result = React.memo((props: any) => {
             </div>
           </div>
 
-          <div
-            style={{
-              //border: "orange dashed",
-              padding: "10px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ marginBottom: "20px" }}>
+          <div className="center p10">
+            <div className="mb20">
               <Typography variant="h5">{bobName}'s guess:</Typography>
               <Typography variant="h6">{bobGuess}</Typography>
             </div>
@@ -149,7 +100,7 @@ const Result = React.memo((props: any) => {
               size={deviceIsSmall ? 300 : 500}
               locked
             />
-            <div style={{ margin: "20px" }}>
+            <div className="m20">
               <Typography variant="subtitle1">
                 According to you, it's:
               </Typography>
@@ -157,15 +108,7 @@ const Result = React.memo((props: any) => {
             </div>
           </div>
         </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <div className="center-row wrap">
           <Button onClick={onRematch} disabled={!rematchAvailable}>
             {rematchAvailable ? "Ask for Rematch" : "Opponent has left"}
           </Button>

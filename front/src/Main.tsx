@@ -33,10 +33,10 @@ const Start = React.memo((props: any) => {
 
   return (
     <>
-      <Typography variant="h5">
+      <Typography variant="h5" className="center-text">
         {name ? `Welcome, ${name}!` : "Welcome!"}
       </Typography>
-      <div style={{ margin: "10px 0 10px 0" }}>
+      <div className="center-row mt10 mb10 wrap">
         <Button onClick={onSinglePlayer}>Start drawing</Button>
         <Button onClick={onStart} disabled={!online}>
           {online ? "Play with others" : "Connecting"}
@@ -50,17 +50,7 @@ const OptionsFAB = (props: any) => {
   const [fabOpen, setFabOpen] = useState(false);
   const { darkMode, onToggle } = props;
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        marginLeft: "10px",
-        marginTop: "10px",
-        zIndex: 999,
-        transform: "translateZ(0px)",
-      }}
-    >
+    <div className="fab">
       <SpeedDial
         ariaLabel="Options"
         hidden={false}
@@ -98,45 +88,32 @@ const Main = (props: any) => {
   const { darkMode } = props;
   const [state, send] = useService(mainService); // TODO: use separate actors for each component
   const m = state.matches;
-  const inInit = m("init");
-  const inIdle = m("idle");
-  const inError = m("error");
-  const isMatchmaking = m("match");
-  const inGame = m("game");
-  const inSinglePlayer = m("singlePlayer");
-  const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
 
   debug("main render", state.toStrings().join(" "));
 
-  const logoWrapperProps = { darkMode, deviceIsSmall };
-
-  if (inInit)
+  if (m("init"))
     return (
-      <LogoWrapper {...logoWrapperProps}>
+      <LogoWrapper {...{ darkMode }}>
         <Loading />
       </LogoWrapper>
     );
 
-  if (inError) {
-    return <Error msg={state.context.errorMsg} />;
-  }
+  if (m("error")) return <Error msg={state.context.errorMsg} />;
 
-  if (inIdle) {
-    const handleStart = () => send("MATCH");
-    const handleSinglePlayer = () => send("SINGLEPLAYER");
+  if (m("idle")) {
     return (
-      <LogoWrapper {...logoWrapperProps}>
+      <LogoWrapper {...{ darkMode }}>
         <Start
           name={state.context.name}
           online={state.context.online}
-          onStart={handleStart}
-          onSinglePlayer={handleSinglePlayer}
+          onStart={() => send("MATCH")}
+          onSinglePlayer={() => send("SINGLEPLAYER")}
         />
       </LogoWrapper>
     );
   }
 
-  if (isMatchmaking)
+  if (m("match"))
     return (
       <Suspense fallback={<Loading />}>
         <UserOffline
@@ -148,14 +125,14 @@ const Main = (props: any) => {
       </Suspense>
     );
 
-  if (inGame)
+  if (m("game"))
     return (
       <Suspense fallback={<Loading />}>
         <Game {...{ state, send }} />
       </Suspense>
     );
 
-  if (inSinglePlayer)
+  if (m("singlePlayer"))
     return (
       <Suspense fallback={<Loading />}>
         <Draw

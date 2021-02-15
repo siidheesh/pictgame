@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { deserialiseStrokes, getRandInRange } from "./util";
 import Canvas from "./Canvas";
+import { useMediaQuery } from "@material-ui/core";
 
 interface RandPicCache {
   [key: string]: any;
@@ -13,8 +14,9 @@ export const logo = deserialiseStrokes(
 );
 
 const LogoWrapper = (props: any) => {
-  const { darkMode, deviceIsSmall } = props;
+  const { darkMode } = props;
   const [animDone, setAnimDone] = useState(false);
+  const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
   const [pic, setPic] = useState(logo);
   const randPicCache = useRef({} as RandPicCache);
   const totalPicCount = useRef(100);
@@ -71,22 +73,8 @@ const LogoWrapper = (props: any) => {
   }, [animDone, pic]);
 
   return (
-    <div
-      style={{
-        margin: "auto",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center",
-        padding: "20px",
-        //border: "red dashed",
-      }}
-    >
-      <div
-        style={{
-          marginBottom: "30px",
-        }}
-      >
+    <div className="center header-padding">
+      <div className="mb30">
         <Canvas
           displayedHistory={pic}
           size={deviceIsSmall ? 200 : 300}

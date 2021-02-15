@@ -1,23 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Typography } from "@material-ui/core";
 import CheckCircleOutlineRoundedIcon from "@material-ui/icons/CheckCircleOutlineRounded";
-import { MainContext, debug } from "./util";
+import { debug } from "./util";
 import Error from "./Error";
 
 function CircularProgressWithLabel(props: any) {
   return (
     <Box position="relative" display="inline-flex">
       <CircularProgress variant="determinate" {...props} />
-      <Box
-        top={0}
-        left={0}
-        bottom={0}
-        right={0}
-        position="absolute"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-      >
+      <Box className="circprogress-box">
         <Typography variant="h5" component="div" color="textSecondary">
           {Math.round(props.label)}
         </Typography>
@@ -31,27 +22,13 @@ const LookingForPlayers = React.memo((props: any) => {
 
   if (timedOut) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          margin: "auto",
-          //border: "red dashed",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "30px" }}>
+      <div className="center center-text header-padding">
+        <div className="mb30">
           <Typography variant="h5" noWrap>
             No players found 🙁
           </Typography>
         </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            justifyContent: "center",
-          }}
-        >
+        <div className="center-row">
           <Button onClick={onMatch}>Try again</Button>
           <Button onClick={onSinglePlayer}>Start drawing</Button>
           <Button onClick={onQuit}>Quit</Button>
@@ -61,16 +38,8 @@ const LookingForPlayers = React.memo((props: any) => {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        margin: "auto",
-        //border: "red dashed",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "30px" }}>
+    <div className="center center-text">
+      <div className="mb30">
         <Typography variant="h5" noWrap>
           Looking for players...
         </Typography>
@@ -90,12 +59,13 @@ const LookingForPlayers = React.memo((props: any) => {
 
 const Acceptance = (props: any) => {
   const {
-    context,
+    name,
+    target,
     aliceAccepted,
     bobAccepted,
-    handleAccept,
-    handleReject,
-    handleTimeout,
+    onAccept,
+    onReject,
+    onTimeout,
   } = props;
 
   const maxTime = 9;
@@ -113,52 +83,19 @@ const Acceptance = (props: any) => {
         debug("useff acceptance cleanup", timeLeft);
         window.clearTimeout(h);
       };
-    } else handleTimeout();
-  }, [timeLeft, handleTimeout]);
+    } else onTimeout();
+  }, [timeLeft, onTimeout]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        margin: "auto",
-        //border: "red dashed",
-        padding: "50px 0 50px 0",
-      }}
-    >
-      <div style={{ marginBottom: "20px" }}>
-        <Typography variant="h4" align="center">
-          Player found!
-        </Typography>
+    <div className="center header-padding">
+      <div className="center-text mb20">
+        <Typography variant="h4">Player found!</Typography>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          //border: "yellow dashed",
-          justifyContent: "center",
-          marginBottom: "20px",
-        }}
-      >
-        <div
-          style={{
-            width: "300px",
-            //border: "blue dashed",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: "10px",
-          }}
-        >
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "20px",
-            }}
-          >
+      <div className="center-row wrap mb20">
+        <div className="center acceptance-box">
+          <div className="center-text mb20">
             <Typography variant="h5" noWrap>
-              {context.name}
+              {name}
             </Typography>
             <Typography variant="subtitle2" noWrap>
               (aka you)
@@ -173,37 +110,21 @@ const Acceptance = (props: any) => {
               }}
             />
           ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "center",
-                marginTop: "10px",
-              }}
-            >
-              <Button onClick={handleAccept} color="primary">
+            <div className="center-row mt10">
+              <Button onClick={onAccept} color="primary">
                 ✅
               </Button>
-              <Button onClick={handleReject} color="secondary">
+              <Button onClick={onReject} color="secondary">
                 ❌
               </Button>
             </div>
           )}
         </div>
 
-        <div
-          style={{
-            width: "300px",
-            //border: "orange dashed",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: "10px",
-          }}
-        >
-          <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <div className="center acceptance-box">
+          <div className="center-text mb20">
             <Typography variant="h5" noWrap>
-              {context.target}
+              {target}
             </Typography>
             <Typography variant="subtitle2" noWrap>
               {bobAccepted ? "is ready to play!" : "is still deciding"}
@@ -221,20 +142,17 @@ const Acceptance = (props: any) => {
           )}
         </div>
       </div>
-      <div style={{ margin: "auto" }}>
-        <CircularProgressWithLabel
-          value={timeLeft > 0 ? (timeLeft / maxTime) * 100 : 100}
-          label={timeLeft}
-          color={timeLeft <= 4 ? "secondary" : "primary"}
-        />
-      </div>
+      <CircularProgressWithLabel
+        value={timeLeft > 0 ? (timeLeft / maxTime) * 100 : 100}
+        label={timeLeft}
+        color={timeLeft <= 4 ? "secondary" : "primary"}
+      />
     </div>
   );
 };
 
 const Match = (props: any) => {
   const { state, send } = props;
-  const context: MainContext = state.context;
   const m = state.matches;
 
   const timedOut = m("match.timedOut");
@@ -243,47 +161,33 @@ const Match = (props: any) => {
     m("match.waitForConfirmation") ||
     m("match.handshake") ||
     timedOut;
-  const inAcceptance = m("match.acceptance");
 
   debug("Match render");
 
   if (inMatchmaking) {
-    const handleMatch = () => send("MATCH");
-    const handleSinglePlayer = () => send("SINGLEPLAYER");
-    const handleQuit = () => send("QUIT");
-    const showMsg = state.context.helloCounter > 1;
     return (
       <LookingForPlayers
         timedOut={timedOut}
-        showMsg={showMsg}
-        onMatch={handleMatch}
-        onSinglePlayer={handleSinglePlayer}
-        onQuit={handleQuit}
+        showMsg={state.context.helloCounter > 1}
+        onMatch={() => send("MATCH")}
+        onSinglePlayer={() => send("SINGLEPLAYER")}
+        onQuit={() => send("QUIT")}
       />
     );
   }
 
-  if (inAcceptance) {
-    const aliceAccepted = m("match.acceptance.alice.ready");
-    const bobAccepted = m("match.acceptance.bob.ready");
-
-    const handleAccept = () => send("ALICE_ACCEPTS");
-    const handleReject = () => send("ALICE_REJECTS");
-    const handleTimeout = () => send("TIMEOUT");
-
+  if (m("match.acceptance"))
     return (
       <Acceptance
-        {...{
-          context,
-          aliceAccepted,
-          bobAccepted,
-          handleAccept,
-          handleReject,
-          handleTimeout,
-        }}
+        name={state.context.name}
+        target={state.context.target}
+        aliceAccepted={m("match.acceptance.alice.ready")}
+        bobAccepted={m("match.acceptance.bob.ready")}
+        onAccept={() => send("ALICE_ACCEPTS")}
+        onReject={() => send("ALICE_REJECTS")}
+        onTimeout={() => send("TIMEOUT")}
       />
     );
-  }
 
   return <Error msg={`Unhandled state(s): ${state.toStrings().join(" ")}`} />;
 };

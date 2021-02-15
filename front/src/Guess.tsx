@@ -22,17 +22,8 @@ const Guess = (props: any) => {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        //border: "dashed",
-        alignItems: "center",
-        margin: "auto",
-        padding: "70px 10px 50px 10px",
-      }}
-    >
-      <div style={{ marginBottom: "50px" }}>
+    <div className="center header-padding">
+      <div className="mb50">
         <Typography variant="h5" noWrap>
           {oppData.name} drew this!
         </Typography>
@@ -42,7 +33,7 @@ const Guess = (props: any) => {
         size={deviceIsSmall ? 300 : 500}
         locked
       />
-      <div style={{ margin: "20px" }}>
+      <div className="m20">
         <Typography variant="h5" noWrap>
           What could it be? 🤔
         </Typography>
@@ -60,13 +51,6 @@ const Guess = (props: any) => {
         }
         error={!inputValid.guess}
       />
-      <Typography
-        variant="caption"
-        noWrap
-        style={{ visibility: guess ? "visible" : "hidden" }}
-      >
-        {false && "(press enter to lock in your guess)"}
-      </Typography>
     </div>
   );
 };

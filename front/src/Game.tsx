@@ -19,16 +19,8 @@ const AwaitBob = React.memo((props: any) => {
   const { name } = props;
 
   return (
-    <div
-      style={{
-        margin: "auto",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        //border: "red dashed",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+    <div className="center header-padding">
+      <div className="center-text mb20">
         <Typography variant="h5">
           Waiting for {name} to finish {props.drawing ? "drawing" : "guessing"}
           ...
@@ -41,25 +33,11 @@ const AwaitBob = React.memo((props: any) => {
 
 const OppLeftGame = React.memo((props: any) => (
   <Dialog open={props.open} aria-labelledby="" aria-describedby="">
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        margin: "20px",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+    <div className="center m20">
+      <div className="center-text mb20">
         <Typography variant="h6">{props.name} left the game :(</Typography>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div className="center-row wrap">
         <Button onClick={props.onSinglePlayer}>Continue</Button>
         <Button onClick={props.onMatch}>New Game</Button>
         <Button onClick={props.onQuit}>Quit</Button>
@@ -123,7 +101,7 @@ const Game = (props: any) => {
       bobGuess: state.context.bobGuess,
       aliceData: state.context.aliceData,
       oppData: state.context.oppData,
-      bobName: state.context.target,
+      bobName: state.context.target || "your opponent", //FIXME: resolve situ where target is cleared while Results is shown
       rematchAvailable:
         state.context.online &&
         !state.context.oppDisconnected &&

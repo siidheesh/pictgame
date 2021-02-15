@@ -689,30 +689,20 @@ const Canvas = React.memo((props: any) => {
   return (
     <Paper
       elevation={6}
+      className="canvas-paper"
       style={{
-        position: "relative",
         width: `${size}px`,
         height: `${size}px`,
-        transform: "translateZ(0px)",
         cursor: animated ? "wait" : dragMode ? "grab" : "inherit",
-        overflow: "hidden",
       }}
     >
-      <canvas
-        ref={canvasRef}
-        height={size}
-        width={size}
-        style={{ zIndex: 0 }}
-      />
+      <canvas ref={canvasRef} height={size} width={size} className="canvas" />
       <canvas
         ref={overlayRef}
         height={size}
         width={size}
+        className="canvas-overlay"
         style={{
-          position: "absolute",
-          top: "0px",
-          left: "0px",
-          zIndex: 1,
           touchAction: animated || !isLocked ? "none" : "auto", // enable touch scrolling if canvas is not animating or is locked
         }}
         {...(animated || isLocked // do not register event listeners if isLocked or animating

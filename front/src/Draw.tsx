@@ -170,32 +170,15 @@ const Draw = (props: DrawProps) => {
   debug("Draw render");
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        margin: "auto",
-        padding: "70px 10px 50px 10px",
-        //border: "red dashed",
-      }}
-      //onWheel={handleScroll}
-    >
-      <div
-        style={{
-          marginBottom: "50px",
-          textAlign: "center",
-        }}
-      >
+    <div className="center header-padding">
+      <div className="center-text mb50">
         <Typography variant="h5">
           Draw something for {getProp("name")} 🎨
         </Typography>
       </div>
       <div
+        className="center mb20"
         style={{
-          margin: "auto",
-          display: "flex",
-          flexDirection: "column",
           cursor: dragMode
             ? "crosshair"
             : eraseMode
@@ -218,7 +201,6 @@ const Draw = (props: DrawProps) => {
           size={deviceIsSmall ? 300 : 500}
         />
       </div>
-      <div style={{ margin: "10px" }} />
       <Slider
         value={brushRadius}
         getAriaValueText={() => "brushRadius"}
@@ -230,23 +212,14 @@ const Draw = (props: DrawProps) => {
         valueLabelDisplay="auto"
         onChange={(e, value) => setbrushRadius(value as number)}
       />
-      <div
-        style={{
-          margin: "10px 0px 10px 0",
-          display: "flex",
-          flexFlow: "row",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ padding: "5px" }}>
+      <div className="center-row wrap mt10 mb10">
+        <div className="p5">
           <ColourPicker
             color={brushColour}
             onChangeComplete={(colour, _) => handleColorChange(colour.hex)}
           />
         </div>
-        <ButtonGroup style={{ padding: "5px" }}>
+        <ButtonGroup className="p5">
           <Tooltip
             title={dragMode ? "Stop dragging" : "Start dragging"}
             aria-label="drag"
@@ -287,15 +260,9 @@ const Draw = (props: DrawProps) => {
           </Button>
         </ButtonGroup>
       </div>
-      {onSubmit && (
-        <div
-          style={{
-            textAlign: "center",
-            marginBottom: "10px",
-            visibility: displayedHistory.length ? "visible" : "hidden", // hide if nothing drawn
-          }}
-        >
-          <div style={{ marginBottom: "10px" }}>
+      {onSubmit && !!displayedHistory.length && (
+        <div className="center-text mb10">
+          <div className="mb10">
             <Typography
               variant="h6"
               onClick={() =>

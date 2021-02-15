@@ -13,3 +13,121 @@ html,
 noscript {
   margin: auto;
 }
+
+.fab {
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin-left: 10px;
+  margin-top: 10px;
+  z-index: 999;
+  transform: translateZ(0px);
+}
+
+.header-padding {
+  padding: 70px 0 50px 0;
+}
+
+.circprogress-box {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.acceptance-box {
+  width: 300px;
+  padding: 10px;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto;
+}
+
+.center-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.wrap-reverse {
+  flex-wrap: wrap-reverse;
+}
+
+.center-text {
+  text-align: center;
+}
+
+.icon {
+  width: 50px;
+  height: 50px;
+}
+
+.mt10 {
+  margin-top: 10px;
+}
+
+.mb10 {
+  margin-bottom: 10px;
+}
+
+.mb20 {
+  margin-bottom: 20px;
+}
+
+.mb30 {
+  margin-bottom: 30px;
+}
+
+.mb50 {
+  margin-bottom: 50px;
+}
+
+.ma {
+  margin: auto;
+}
+
+.m20 {
+  margin: 20px;
+}
+
+.p5 {
+  padding: 5px;
+}
+
+.p10 {
+  padding: 10px;
+}
+
+.p20 {
+  padding: 20px;
+}
+
+.canvas-paper {
+  position: relative;
+  transform: translateZ(0px);
+  overflow: hidden;
+}
+
+.canvas {
+  z-index: 0;
+}
+
+.canvas-overlay {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  z-index: 1;
+}

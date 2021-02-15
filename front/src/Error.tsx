@@ -7,24 +7,9 @@ interface ErrorProps {
 }
 
 const Error = React.memo((props: ErrorProps) => (
-  <div
-    style={{
-      margin: "auto",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      textAlign: "center",
-    }}
-  >
-    <div
-      style={{
-        display: "flex",
-        flexFlow: "wrap-reverse",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Typography variant="h4" style={{ padding: "10px" }}>
+  <div className="center ma">
+    <div className="center-row wrap-reverse">
+      <Typography variant="h4" className="p10">
         Error
       </Typography>
       <ErrorOutlineIcon />
