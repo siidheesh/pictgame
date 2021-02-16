@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { TextField, Typography } from "@material-ui/core";
+import { TextField, Typography, useMediaQuery } from "@material-ui/core";
 import Canvas from "./Canvas";
 
 const Guess = (props: any) => {
-  const { oppData, onGuess, deviceIsSmall } = props;
+  const { oppData, onGuess } = props;
   const [guess, setGuess] = useState("");
   const [inputValid, setInputValid] = useState({ guess: false });
+  const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e?.key === "Enter" || e?.code === "Enter" || e?.keyCode === 13) {

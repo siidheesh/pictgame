@@ -1,9 +1,10 @@
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import { Paper } from "@material-ui/core";
 import { getRandInRange } from "./util";
 
 export type Point = [number, number];
 export type Vector = [number, number];
+export type Angles = { x: number; y: number };
 export interface Stroke {
   colour: string;
   brushRadius: number;
@@ -41,22 +42,25 @@ const defaultProps: any = {
 };
 
 /**
- * Converts client coords (mouse/touch) to canvas-rel coords
+ * Converts client coords (mouse/touch) to elem-rel coords
  *
- * @param {React.MutableRefObject<HTMLCanvasElement>} canvasRef the ref to the canvas
+ * @param {React.MutableRefObject<HTMLElement>} ref the ref to the element
  * @param {number} x x coord rel to client
  * @param {number} x y coord rel to client
  */
 function convertCoords(
-  canvasRef: React.MutableRefObject<HTMLCanvasElement>,
+  ref: React.MutableRefObject<HTMLElement>,
   x: number,
   y: number
 ): Point {
-  const rect = canvasRef.current.getBoundingClientRect();
+  const rect = ref.current.getBoundingClientRect();
   const canvasX = Math.floor(x - rect.left); // ts actually caught me using parseInt instead of Math.floor/toFixed... heh.
   const canvasY = Math.floor(y - rect.top);
   return [canvasX, canvasY];
 }
+
+// Vector from p1 to p2
+const vec = (p1: Point, p2: Point): Vector => [p1[0] - p2[0], p1[1] - p2[1]];
 
 /**
  * Draws strokes on the canvas
@@ -197,56 +201,6 @@ const drawBoundingBox = (
 };
 
 /**
- * Compute the border point given an in-bounds point and an out-of-bounds pounts
- * @param {Point} point1 Point 1
- * @param {Point} point2 Point 2
- * @param {number} size The current canvas size
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-/*const calcBorderPoint = (point1: Point, point2: Point, size: number) => {
-  if (!point1 || !point2) return null;
-  // get bounding box for point pair
-  const topLeft: Point = [
-      Math.min(point1[0], point2[0]),
-      Math.min(point1[1], point2[1]),
-    ],
-    bottomRight: Point = [
-      Math.max(point1[0], point2[0]),
-      Math.max(point1[1], point2[1]),
-    ];
-
-  // get vector diff
-  const dp = ((p1: Point, p2: Point): Vector => [p2[0] - p1[0], p2[1] - p1[1]])(
-    topLeft,
-    bottomRight
-  );
-
-  let pointOnBorder: Point | null = null;
-
-  if (topLeft[0] < 0 && 0 <= bottomRight[0]) {
-    // crossing the left border
-    const ratio = (0 - topLeft[0]) / dp[0]; // no x/0 error
-    pointOnBorder = [0, topLeft[1] + ratio * dp[1]];
-  } else if (topLeft[0] < size && size <= bottomRight[0]) {
-    // crossing the right border
-    const ratio = (size - topLeft[0]) / dp[0];
-    pointOnBorder = [size, topLeft[1] + ratio * dp[1]];
-  } else if (topLeft[1] < 0 && 0 <= bottomRight[1]) {
-    // crossing the top border
-    const ratio = (0 - topLeft[1]) / dp[1];
-    pointOnBorder = [topLeft[0] + ratio * dp[0], 0];
-  } else if (topLeft[1] < size && size <= bottomRight[1]) {
-    // crossing the bottom border
-    const ratio = (size - topLeft[1]) / dp[1];
-    pointOnBorder = [topLeft[0] + ratio * dp[0], size];
-  } else {
-    console.warn("pointOnBorder unhandled", topLeft, bottomRight, dp);
-  }
-  //if (pointOnBorder) debug("borderpoint", topLeft, pointOnBorder, bottomRight);
-  return pointOnBorder;
-};*/
-
-/**
  * Process a Stroke for export
  *
  * <s>For the moment this removes invalid points (i.e out-of-bound points), splits up Strokes into separate ones, as they enter and leave bounds, and integerises everything</s>
@@ -256,69 +210,6 @@ const drawBoundingBox = (
  * @param {number} size The current canvas size
  */
 export const processStroke = (stroke: Stroke): Stroke[] => {
-  //const strokes: Stroke[] = [];
-  if (stroke?.points) {
-    // FIXME: find a way to properly clip points
-    // the problem is probably with (de)serialising the strokes (confirmed, signed overflow)
-    // using JSON to (de)serialise the Strokes as an interim fix
-    /*// clip points to lie within bounds, results in a squished effect
-    stroke.points = stroke.points.map((point) => [
-      Math.min(stroke.size, Math.max(0, point[0])),
-      Math.min(stroke.size, Math.max(0, point[1])),
-    ]);*/
-    /*// filter points not in bounds, but line segments between inbounds points and outbounds ones are lost
-    stroke.points = stroke.points.filter(
-      (point) =>
-        0 <= point[0] &&
-        point[0] <= stroke.size &&
-        0 <= point[1] &&
-        point[1] <= stroke.size
-    );*/
-    // BUG: need to take brushRadius into account when clipping
-    /*
-    const points = stroke.points;
-    const pointInBounds = (point: Point) =>
-      0 <= point[0] &&
-      point[0] <= stroke.size &&
-      0 <= point[1] &&
-      point[1] <= stroke.size;
-
-    let inBounds = true;
-    let currentStroke: Stroke = { ...stroke, points: [] };
-
-    for (let i = 0; i < points.length; i++) {
-      if (pointInBounds(points[i])) {
-        if (!inBounds) {
-          // we've jumped back into bounds, add a point at the border
-          const pointOnBorder = calcBorderPoint(
-            points[i - 1],
-            points[i],
-            stroke.size
-          );
-          if (pointOnBorder) currentStroke.points.push(pointOnBorder);
-          inBounds = true;
-        }
-        currentStroke.points.push(points[i]);
-      } else if (inBounds) {
-        inBounds = false;
-        // we've jumped out of bounds, add a point at the border
-        const pointOnBorder = calcBorderPoint(
-          points[i - 1],
-          points[i],
-          stroke.size
-        );
-        if (pointOnBorder) currentStroke.points.push(pointOnBorder);
-        // push currentStroke to stack and make a new one
-        if (currentStroke.points.length) strokes.push(currentStroke);
-        debug("new stroke", currentStroke);
-        currentStroke = { ...stroke, points: [] };
-        inBounds = false;
-      } else continue; // ignore oob points
-    }
-
-    if (currentStroke.points.length) strokes.push(currentStroke);
-    */
-  }
   // integerise coords
   return [stroke].map((stroke) => ({
     ...stroke,
@@ -327,6 +218,31 @@ export const processStroke = (stroke: Stroke): Stroke[] => {
       Math.floor(point[1]),
     ]),
   }));
+};
+
+/**
+ * Calculate the XY tilt angles given the current touch/click point, canvas size and max abs angle
+ *
+ * @param {Point} current The interaction point
+ * @param {number} size The current canvas size
+ * @param {number} maxAngle The max. abs. tilt angle, -maxAngle<=X,Y<=maxAngle
+ * @returns {Angles} The XY angles
+ *
+ * Rotations don't commute so this isn't a perfect solution
+ */
+const calcTilt = (current: Point, size: number, maxAngle = 10): Angles => {
+  if (!size) throw new Error("size can't be zero!");
+  const halfSize = size / 2;
+  const center: Point = [halfSize, halfSize];
+  const dp = vec(center, current);
+  const clipped = [
+    Math.max(-halfSize, Math.min(halfSize, dp[0])),
+    Math.max(-halfSize, Math.min(halfSize, dp[1])),
+  ];
+  return {
+    x: (clipped[1] / center[1]) * maxAngle,
+    y: -(clipped[0] / center[0]) * maxAngle,
+  };
 };
 
 // TODO: sort strokes by a zIndex prop, for layering
@@ -375,7 +291,10 @@ const Canvas = React.memo((props: any) => {
       point: [0, 0] as Point,
       boundingBoxes: [] as [Point, Point][],
     }),
-    draggedHistory = useRef([] as Stroke[]);
+    draggedHistory = useRef([] as Stroke[]),
+    parentRef = useRef(document.createElement("div"));
+
+  const [tilt, setTilt] = useState({ x: 0, y: 0 } as Angles);
 
   const handlePaintStart = useCallback(
     (x: number, y: number) => {
@@ -453,10 +372,7 @@ const Canvas = React.memo((props: any) => {
           )
             return;
           // calculate displacement
-          const dp = ((p1: Point, p2: Point): Vector => [
-            p2[0] - p1[0],
-            p2[1] - p1[1],
-          ])(selectedStrokes.current.point, canvasXY);
+          const dp = vec(canvasXY, selectedStrokes.current.point);
 
           const ctx = canvasRef.current?.getContext("2d", { alpha: false });
 
@@ -700,28 +616,54 @@ const Canvas = React.memo((props: any) => {
     }
   }, [displayedHistory, size, animated, handleFrame, bgColour]);
 
+  const handleTilt = (_x: number, _y: number) =>
+    setTilt(calcTilt(convertCoords(parentRef, _x, _y), size));
+  const handleTiltEnd = () => setTilt({ x: 0, y: 0 });
+  const isTilting = tilt.x || tilt.y;
+
   return (
-    <Paper
-      elevation={6}
-      className="canvas-paper"
+    <div
+      ref={parentRef} // canvas' movement leads to changes in convertCoords, hence the need for parentRef
       style={{
-        width: `${size}px`,
-        height: `${size}px`,
-        cursor: animated ? "wait" : dragMode ? "grab" : "inherit",
+        perspective: isTilting ? "1000px" : "none",
+        touchAction: "none",
+        //border: "dashed",
       }}
+      // register handlers for tilt
+      {...(isLocked && {
+        onMouseMove: (e) => handleTilt(e.clientX, e.clientY),
+        onMouseLeave: handleTiltEnd,
+        onTouchStart: (e) =>
+          handleTilt(e.changedTouches[0].clientX, e.changedTouches[0].clientY),
+        onTouchMove: (e) =>
+          handleTilt(e.changedTouches[0].clientX, e.changedTouches[0].clientY),
+        onTouchEnd: handleTiltEnd,
+        onTouchCancel: handleTiltEnd,
+      })}
     >
-      <canvas ref={canvasRef} height={size} width={size} className="canvas" />
-      <canvas
-        ref={overlayRef}
-        height={size}
-        width={size}
-        className="canvas-overlay"
+      <Paper
+        elevation={6}
+        className="canvas-paper"
         style={{
-          touchAction: animated || !isLocked ? "none" : "auto", // enable touch scrolling if canvas is not animating or is locked
+          width: `${size}px`,
+          height: `${size}px`,
+          cursor: animated ? "wait" : dragMode ? "grab" : "inherit",
+          transform: isTilting
+            ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(${
+                isTilting ? "1.05" : "0.95"
+              })`
+            : "none",
         }}
-        {...(animated || isLocked // do not register event listeners if isLocked or animating
-          ? {}
-          : {
+      >
+        <canvas ref={canvasRef} height={size} width={size} className="canvas" />
+        <canvas
+          ref={overlayRef}
+          height={size}
+          width={size}
+          className="canvas-overlay"
+          {...(!animated &&
+            !isLocked && {
+              // do not register event listeners if locked or animating
               onMouseDown: (e) => handlePaintStart(e.clientX, e.clientY),
               onMouseMove: (e) => handlePaint(e.clientX, e.clientY),
               onMouseUp: handlePaintEnd,
@@ -740,9 +682,10 @@ const Canvas = React.memo((props: any) => {
               onTouchEnd: handlePaintEnd,
               onTouchCancel: handlePaintEnd,
             })}
-        onContextMenu={(e) => e.preventDefault()}
-      />
-    </Paper>
+          onContextMenu={(e) => e.preventDefault()}
+        />
+      </Paper>
+    </div>
   );
 });
 

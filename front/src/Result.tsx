@@ -4,6 +4,7 @@ import {
   CircularProgress,
   Dialog,
   Typography,
+  useMediaQuery,
 } from "@material-ui/core";
 import Canvas from "./Canvas";
 
@@ -28,7 +29,7 @@ const ResultRematchDecide = React.memo((props: any) => (
   </div>
 ));
 
-const Result = React.memo((props: any) => {
+const Result = (props: any) => {
   const {
     aliceGuess,
     bobGuess,
@@ -43,8 +44,8 @@ const Result = React.memo((props: any) => {
     rematchModal,
     rematchModalType,
     rematchAvailable,
-    deviceIsSmall,
   } = props;
+  const deviceIsSmall = useMediaQuery("(max-width:1100px)", { noSsr: true });
 
   return (
     <>
@@ -118,6 +119,6 @@ const Result = React.memo((props: any) => {
       </div>
     </>
   );
-});
+};
 
 export default Result;

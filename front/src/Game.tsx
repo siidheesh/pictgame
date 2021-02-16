@@ -4,7 +4,6 @@ import {
   CircularProgress,
   Typography,
   Dialog,
-  useMediaQuery,
 } from "@material-ui/core";
 import Error from "./Error";
 import { Stroke } from "./Canvas";
@@ -56,8 +55,6 @@ const Game = (props: any) => {
   const waitingForGuess = m("game.guessing.alice.ready");
   const isEndGame = m("game.result");
 
-  const deviceIsSmall = useMediaQuery("(max-width:600px)", { noSsr: true });
-
   let component = (
     <Error msg={`Unhandled state(s): ${state.toStrings().join(" ")}`} />
   );
@@ -90,7 +87,6 @@ const Game = (props: any) => {
         <Guess
           onGuess={handleGuess}
           oppData={{ ...state.context.oppData, name: state.context.target }}
-          deviceIsSmall={deviceIsSmall}
         />
       </Suspense>
     );
@@ -115,7 +111,6 @@ const Game = (props: any) => {
       onRematchReject: () => send("REMATCH_REJECT"),
       onNewGame: () => send("GOTO_MATCH"),
       onQuit: () => send("QUIT"),
-      deviceIsSmall,
     };
     return (
       <Suspense fallback={<Loading />}>
