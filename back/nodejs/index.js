@@ -212,16 +212,17 @@ const processClientMsg = (origMsg) => {
           bin.id !== msg[1] ? bin : {}
         );
       }
-      if (msg[2])
-        // disconnected client was matched with someone
-        for (const socket of io.sockets.sockets.values()) {
-          if (socket?.username === msg[2]) {
-            // inform target that source has disconnected, and if target is matchedWith source, clear that as well
-            if (socket?.matchedWith === msg[1]) delete socket.matchedWith;
-            socket.emit("INFORM_DISCONNECT", msg[1]);
-            break;
-          }
+      for (const socket of io.sockets.sockets.values()) {
+        if (
+          (msg[2] && socket?.username === msg[2]) ||
+          socket?.matchedWith === msg[1]
+        ) {
+          // inform target that source has disconnected, and if target is matchedWith source, clear that as well
+          if (socket?.matchedWith === msg[1]) delete socket.matchedWith;
+          socket.emit("INFORM_DISCONNECT", msg[1]);
+          break;
         }
+      }
       break;
     default:
       debug(chalk.red(`unknown msg.type ${msg[0]}: ${origMsg}`));
