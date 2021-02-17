@@ -84,9 +84,7 @@ const processClientMsg = (origMsg) => {
     }
     case msgType.INFORM_DISCONNECT: {
       const [_, source, __] = msg;
-      if (source in sharedKeys) {
-        delete sharedKeys[source];
-      }
+      cleanup(source);
     }
     default:
       break;
@@ -119,19 +117,6 @@ const processData = async (source, payload) => {
         if (!payload.key) break;
         const bobKey = await importBobKey(_base64ToArrayBuffer(payload.key));
         sharedKeys[source] = await generateSharedKey(privateKey, bobKey);
-        console.log("sending MATCHTEST to", source);
-        pub.publish(
-          clientChannel,
-          JSON.stringify([
-            msgType.DATA,
-            name,
-            source,
-            {
-              type: "MATCHCHECK",
-              key: _arrayBufferToBase64(rawPubKey),
-            },
-          ])
-        );
         break;
       case "MATCHTEST":
         if (!payload.iv || !payload.enc) break;
@@ -157,6 +142,7 @@ const processData = async (source, payload) => {
         } catch (e) {
           console.log(e);
         }
+        break;
       case "MATCHTEST_ACK":
         console.log("MATCHTEST_ACK", source);
         pub.publish(
@@ -204,8 +190,7 @@ const processData = async (source, payload) => {
       case "USER_TIMEDOUT":
       case "USER_REJECTS":
       case "BOB_QUIT":
-        delete sharedKeys[source];
-        delete matchReqCount[source];
+        cleanup(source);
         break;
       default:
         break;
@@ -217,6 +202,11 @@ const processData = async (source, payload) => {
       payload.enc
     ).then((plainobj) => processData(source, plainobj));
   }
+};
+
+const cleanup = (source) => {
+  delete sharedKeys[source];
+  delete matchReqCount[source];
 };
 
 (async () => {

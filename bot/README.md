@@ -1,6 +1,8 @@
-# PictBot (work in progress)
+# PictBot 🤖 (beta)
 
 A simple bot microservice that matches and plays with clients that have been waiting for a while
+
+Try it out at https://pg.siid.sh
 
 # How
 

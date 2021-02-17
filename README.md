@@ -1,8 +1,8 @@
 ![Pictgame logo](./pictgame.png "Pictgame")
 
-# Pictgame
+# Pictgame 🎨
 
-A pictionary-esque game with a react + xstate frontend and node backend
+A pictionary-esque game with a react + xstate frontend, node + redis microservice backend and a bot
 
 Written to better acquaint myself with the abovementioned tech
 
