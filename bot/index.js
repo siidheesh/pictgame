@@ -72,16 +72,18 @@ const processClientMsg = (origMsg) => {
 
   if (!pubMsgIsValid(msg)) return;
   switch (msg[0]) {
-    case msgType.MATCH_REQ:
-      processMatchReq(msg);
+    case msgType.MATCH_REQ: {
+      const [_, source, __] = msg;
+      processMatchReq(source);
       break;
+    }
     case msgType.DATA: {
-      const [type, source, target, payload] = msg;
+      const [_, source, target, payload] = msg;
       if (target === name) processData(source, payload);
       break;
     }
     case msgType.INFORM_DISCONNECT: {
-      const [type, source, target] = msg;
+      const [_, source, __] = msg;
       if (source in sharedKeys) {
         delete sharedKeys[source];
       }
@@ -91,11 +93,10 @@ const processClientMsg = (origMsg) => {
   }
 };
 
-const processMatchReq = (msg) => {
-  const [type, source, options] = msg;
+const processMatchReq = (source) => {
   matchReqCount[source] = matchReqCount[source] ? matchReqCount[source] + 1 : 1;
   console.log("processMatchReq", source, matchReqCount[source]);
-  if (matchReqCount[source] >= 2) {
+  if (matchReqCount[source] > 2) {
     delete matchReqCount[source];
     console.log("matching with", source);
     pub.publish(
@@ -200,8 +201,12 @@ const processData = async (source, payload) => {
           JSON.stringify([msgType.DATA, name, source, { type: "REMATCH_OK" }])
         );
         break;
+      case "USER_TIMEDOUT":
+      case "USER_REJECTS":
       case "BOB_QUIT":
         delete sharedKeys[source];
+        delete matchReqCount[source];
+        break;
       default:
         break;
     }
