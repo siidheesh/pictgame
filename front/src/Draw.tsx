@@ -286,7 +286,7 @@ const Draw = (props: DrawProps) => {
           </Button>
         </ButtonGroup>
       </div>
-      {onSubmit && !!displayedHistory.length && (
+      {onSubmit && (
         <div className="center-text mb10">
           <div className="mb10">
             <Typography
@@ -308,6 +308,7 @@ const Draw = (props: DrawProps) => {
                 ? "(press enter to lock in your drawing)"
                 : "Must be filled"
             }
+            disabled={!displayedHistory.length} // prevent huge layout shift
             error={!inputValid.description}
             onKeyDown={handleKeyDown} //https://stackoverflow.com/questions/22473950/keypress-event-not-firing-in-android-mobile
           />

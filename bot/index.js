@@ -103,7 +103,7 @@ const processMatchReq = (source) => {
         msgType.DATA,
         name,
         source,
-        { type: "MATCHCHECK", key: _arrayBufferToBase64(rawPubKey) },
+        { type: "MATCHCHECK", key: rawPubKey },
       ])
     );
   }
@@ -115,12 +115,15 @@ const processData = async (source, payload) => {
     switch (payload.type) {
       case "MATCHCHECKACK":
         if (!payload.key) break;
-        const bobKey = await importBobKey(_base64ToArrayBuffer(payload.key));
-        sharedKeys[source] = await generateSharedKey(privateKey, bobKey);
+        try {
+          const bobKey = await importBobKey(payload.key);
+          sharedKeys[source] = await generateSharedKey(privateKey, bobKey);
+        } catch (e) {
+          console.log(e);
+        }
         break;
       case "MATCHTEST":
-        if (!payload.iv || !payload.enc) break;
-        console.log("MATCHTEST", source, payload.iv, payload.enc);
+        if (!payload.iv || !payload.enc || !sharedKeys[source]) break;
         try {
           const { iv, enc } = await replyTest(sharedKeys[source], {
             iv: payload.iv,
@@ -159,26 +162,34 @@ const processData = async (source, payload) => {
         break;
       case "BOB_DREW":
         console.log("sending BOB_DREW to", source);
-        const ivenc = await encryptObject(sharedKeys[source], {
-          type: "BOB_DREW",
-          pic: payload.pic,
-          label: `${name} ${payload.label}`,
-        });
-        pub.publish(
-          clientChannel,
-          JSON.stringify([msgType.DATA, name, source, ivenc])
-        );
+        try {
+          const ivenc = await encryptObject(sharedKeys[source], {
+            type: "BOB_DREW",
+            pic: payload.pic,
+            label: `${payload.label} 🤭`,
+          });
+          pub.publish(
+            clientChannel,
+            JSON.stringify([msgType.DATA, name, source, ivenc])
+          );
+        } catch (e) {
+          console.log(e);
+        }
         break;
       case "BOB_GUESSED":
         console.log("sending BOB_GUESSED to", source);
-        const ivenc1 = await encryptObject(sharedKeys[source], {
-          type: "BOB_GUESSED",
-          guess: `${name} ${payload.guess}`,
-        });
-        pub.publish(
-          clientChannel,
-          JSON.stringify([msgType.DATA, name, source, ivenc1])
-        );
+        try {
+          const ivenc1 = await encryptObject(sharedKeys[source], {
+            type: "BOB_GUESSED",
+            guess: `${payload.label}? 🤭`,
+          });
+          pub.publish(
+            clientChannel,
+            JSON.stringify([msgType.DATA, name, source, ivenc1])
+          );
+        } catch (e) {
+          console.log(e);
+        }
         break;
       case "REMATCH?":
         console.log("sending REMATCH_OK to", source);
@@ -196,11 +207,9 @@ const processData = async (source, payload) => {
         break;
     }
   } else if (payload.iv && payload.enc && sharedKeys[source]) {
-    decryptObject(
-      sharedKeys[source],
-      payload.iv,
-      payload.enc
-    ).then((plainobj) => processData(source, plainobj));
+    decryptObject(sharedKeys[source], payload.iv, payload.enc)
+      .then((plainobj) => processData(source, plainobj))
+      .catch(console.log);
   }
 };
 

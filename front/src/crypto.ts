@@ -23,13 +23,11 @@ export const generateKeyPair = () =>
     : Promise.reject(new Error("SubtleCrypto not available"));
 
 export const exportRawKey = (context: any, event: any) =>
-  window.crypto.subtle
-    .exportKey("raw", event.data.publicKey)
-    .then(_arrayBufferToBase64);
+  window.crypto.subtle.exportKey("jwk", event.data.publicKey);
 
 export const importBobKey = (context: MainContext, event: any) =>
   window.crypto.subtle.importKey(
-    "raw",
+    "jwk",
     context.targetKey,
     ecdhDevParams,
     true,

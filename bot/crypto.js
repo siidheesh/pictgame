@@ -17,10 +17,10 @@ const generateKeyPair = () =>
     ? subtle.generateKey(ecdhDevParams, false, ["deriveKey", "deriveBits"])
     : Promise.reject(new Error("SubtleCrypto not available"));
 
-const exportRawKey = (publicKey) => subtle.exportKey("raw", publicKey);
+const exportRawKey = (publicKey) => subtle.exportKey("jwk", publicKey);
 
 const importBobKey = (targetKey) =>
-  subtle.importKey("raw", targetKey, ecdhDevParams, true, []);
+  subtle.importKey("jwk", targetKey, ecdhDevParams, true, []);
 
 const generateSharedKey = (myPrivateKey, publicKey) =>
   subtle.deriveKey(

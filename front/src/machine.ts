@@ -13,7 +13,6 @@ import {
 } from "./crypto";
 import {
   MainContext,
-  _base64ToArrayBuffer,
   getRandInRange,
   serialiseStrokes,
   deserialiseStrokes,
@@ -650,14 +649,14 @@ const processData = (source: string, payload: any, wasEncrypted?: boolean) => {
         if (!payload.key) break;
         mainService.send("MATCH_CHECK", {
           source,
-          key: _base64ToArrayBuffer(payload.key),
+          key: payload.key,
         });
         break;
       case "MATCHCHECKACK":
         if (!payload.key) break;
         mainService.send("MATCH_CHECK_ACK", {
           source,
-          key: _base64ToArrayBuffer(payload.key),
+          key: payload.key,
         });
         break;
       case "USER_ACCEPTS":
