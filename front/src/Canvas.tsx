@@ -4,6 +4,7 @@ import { getRandInRange } from "./util";
 
 export type Point = [number, number];
 export type Vector = [number, number];
+export type Box = [Point, Point];
 export type Angles = { x: number; y: number };
 export interface Stroke {
   colour: string;
@@ -54,8 +55,8 @@ function convertCoords(
   y: number
 ): Point {
   const rect = ref.current.getBoundingClientRect();
-  const canvasX = Math.floor(x - rect.left); // ts actually caught me using parseInt instead of Math.floor/toFixed... heh.
-  const canvasY = Math.floor(y - rect.top);
+  const canvasX = Math.floor(0.5 + x - rect.left); // ts actually caught me using parseInt instead of Math.floor/toFixed... heh.
+  const canvasY = Math.floor(0.5 + y - rect.top);
   return [canvasX, canvasY];
 }
 
@@ -78,7 +79,7 @@ const drawOnCanvas = (
   if (!stroke?.points) return;
 
   const ratio = size / stroke.size;
-  const scale = (x: number) => Math.floor(x * ratio);
+  const scale = (x: number) => Math.floor(0.5 + x * ratio);
   const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
   const radius = Math.max(1, scale(stroke.brushRadius));
 
@@ -109,64 +110,13 @@ const drawOnCanvas = (
   }
 };
 
-/**
- * Squared euclidian distance between two Points
- * @param {Point} p1 Point 1
- * @param {Point} p2 Point 2
- */
-const euclideanDistSqrd = (p1: Point, p2: Point) =>
-  (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2;
-
-/**
- * Check if a point is contained within a stroke
- * @param {Point} test The point in question
- * @param {Stroke} stroke The stroke in question
- * @param {number} size The current canvas size
- */
-const pointInStroke = (test: Point, stroke: Stroke, size: number) => {
-  const points = stroke?.points;
-  if (!points) return false;
-
-  const ratio = size / stroke.size;
-  const scale = (x: number) => Math.floor(x * ratio);
-  const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
-  const radius = Math.max(1, scale(stroke.brushRadius + 5));
-  const radiusSquared = radius ** 2;
-  const p0 = scalePoint(points[0]);
-
-  if (points.length === 1) {
-    return euclideanDistSqrd(test, p0) <= radiusSquared;
-  } else {
-    // check if test is within radius of a stroke point
-    let topLeft: Point = [p0[0], p0[1]],
-      bottomRight: Point = [p0[0], p0[1]];
-    for (let i = 0; i < points.length; i++) {
-      const sp = scalePoint(points[i]);
-      if (euclideanDistSqrd(test, sp) <= radiusSquared) return true;
-      // update stroke's bounding box
-      topLeft = [Math.min(topLeft[0], sp[0]), Math.min(topLeft[1], sp[1])];
-      bottomRight = [
-        Math.max(bottomRight[0], sp[0]),
-        Math.max(bottomRight[1], sp[1]),
-      ];
-    }
-    // test IF point within bounding box of stroke
-    return (
-      topLeft[0] <= test[0] &&
-      test[0] <= bottomRight[0] &&
-      topLeft[1] <= test[1] &&
-      test[1] <= bottomRight[1]
-    );
-  }
-};
-
 // FIXME: refactor this along with the func above
 // TODO: calculate bounding box during handlePaintStart, and offset it along with the ref point
-const getBoundingBox = (stroke: Stroke, size: number): [Point, Point] => {
+const getBoundingBox = (stroke: Stroke, size: number): Box => {
   const points = stroke?.points;
   //if (!points) return false; // should never be true
   const ratio = size / stroke.size;
-  const scale = (x: number) => Math.floor(x * ratio);
+  const scale = (x: number) => Math.floor(0.5 + x * ratio);
   const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
   const radius = Math.max(1, scale(stroke.brushRadius));
   const p0 = scalePoint(points[0]);
@@ -188,9 +138,15 @@ const getBoundingBox = (stroke: Stroke, size: number): [Point, Point] => {
   return [topLeft, bottomRight];
 };
 
+const pointInBox = (test: Point, [topLeft, bottomRight]: Box) =>
+  topLeft[0] <= test[0] &&
+  test[0] <= bottomRight[0] &&
+  topLeft[1] <= test[1] &&
+  test[1] <= bottomRight[1];
+
 const drawBoundingBox = (
   ctx: CanvasRenderingContext2D,
-  [topLeft, bottomRight]: [Point, Point]
+  [topLeft, bottomRight]: Box
 ) => {
   ctx.strokeRect(
     topLeft[0],
@@ -210,14 +166,29 @@ const drawBoundingBox = (
  * @param {number} size The current canvas size
  */
 export const processStroke = (stroke: Stroke): Stroke[] => {
-  // integerise coords
-  return [stroke].map((stroke) => ({
-    ...stroke,
-    points: stroke.points.map((point) => [
-      Math.floor(point[0]),
-      Math.floor(point[1]),
-    ]),
-  }));
+  return (
+    [stroke] // process one stroke for now
+      // remove strokes outside bounds
+      .filter((stroke) => {
+        const size = stroke.size;
+        const boundsBox = [
+          [0, 0],
+          [size, size],
+        ] as Box;
+        const [topLeft, bottomRight] = getBoundingBox(stroke, size);
+        return (
+          pointInBox(topLeft, boundsBox) || pointInBox(bottomRight, boundsBox)
+        );
+      })
+      // integerise coords
+      .map((stroke) => ({
+        ...stroke,
+        points: stroke.points.map((point) => [
+          Math.floor(0.5 + point[0]),
+          Math.floor(0.5 + point[1]),
+        ]) as Point[],
+      }))
+  );
 };
 
 /**
@@ -289,7 +260,12 @@ const Canvas = React.memo((props: any) => {
     selectedStrokes = useRef({
       strokes: [] as StrokeIndexes,
       point: [0, 0] as Point,
-      boundingBoxes: [] as [Point, Point][],
+      boundingBoxes: [
+        [
+          [0, 0],
+          [0, 0],
+        ],
+      ] as Box[],
     }),
     draggedHistory = useRef([] as Stroke[]),
     parentRef = useRef(document.createElement("div"));
@@ -302,38 +278,35 @@ const Canvas = React.memo((props: any) => {
       const canvasXY = convertCoords(canvasRef, x, y);
       if (!drawMode.current) {
         drawMode.current = true;
-
+        const selected = selectedStrokes.current;
         if (dragMode) {
           // store a copy of displayedHistory
           draggedHistory.current = JSON.parse(JSON.stringify(displayedHistory));
-          // keep track of strokes under cursor position
-          selectedStrokes.current = {
-            ...selectedStrokes.current,
-            strokes: draggedHistory.current.reduceRight(
-              (acc, stroke, idx) =>
-                !acc.length && // only drag the latest stroke for now
-                pointInStroke(canvasXY, stroke, size)
-                  ? acc.concat(idx)
-                  : acc,
-              [] as StrokeIndexes
-            ),
-            point: canvasXY,
-          };
-          // compute, draw and store bounding boxes
+
+          // compute bounding boxes
+          const boxes = draggedHistory.current.map((stroke) =>
+            getBoundingBox(stroke, size)
+          );
+
+          // keep track of strokes under cursor position by mutating selectedStrokes.current
+          selected.point = canvasXY;
+          selected.strokes = draggedHistory.current.reduceRight(
+            (acc, _, idx) =>
+              !acc.length && // only drag the latest stroke for now
+              pointInBox(canvasXY, boxes[idx])
+                ? acc.concat(idx)
+                : acc,
+            [] as StrokeIndexes
+          );
+          selected.boundingBoxes = selected.strokes.map((idx) => boxes[idx]);
+
+          // draw bounding boxes
           const ctx = overlayRef.current?.getContext("2d", { alpha: true });
           if (ctx) {
             ctx.clearRect(0, 0, size, size);
             ctx.setLineDash(boundingBoxDash);
+            selected.boundingBoxes.forEach((box) => drawBoundingBox(ctx, box));
           }
-          selectedStrokes.current.boundingBoxes = selectedStrokes.current.strokes.map(
-            ctx
-              ? (i) => {
-                  const bb = getBoundingBox(draggedHistory.current[i], size);
-                  drawBoundingBox(ctx, bb);
-                  return bb;
-                }
-              : (i) => getBoundingBox(draggedHistory.current[i], size)
-          );
           //if (selectedStrokes.current?.strokes) onDrag();
         } else {
           currentStroke.current = {
@@ -366,75 +339,69 @@ const Canvas = React.memo((props: any) => {
       const canvasXY = convertCoords(canvasRef, x, y);
       if (drawMode.current) {
         if (dragMode) {
-          if (
-            !selectedStrokes.current?.point ||
-            !selectedStrokes.current?.strokes
-          )
-            return;
+          const selected = selectedStrokes.current;
+          if (!selected?.point || !selected?.strokes) return;
           // calculate displacement
-          const dp = vec(canvasXY, selectedStrokes.current.point);
+          const dp = vec(canvasXY, selected.point);
 
-          const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+          const hist = draggedHistory.current;
 
           // loop through each selected stroke
-          for (const i in selectedStrokes.current.strokes) {
-            const strokeIdx = selectedStrokes.current.strokes[i];
+          for (const i in selected.strokes) {
+            const strokeIdx = selected.strokes[i];
             //reference to the stroke to be moved
-            const selectedStroke = draggedHistory.current[strokeIdx];
+            const stroke = hist[strokeIdx];
             // the displacement vector ratio is inverse in this case
-            const ratio = selectedStroke.size / size;
+            const ratio = stroke.size / size;
             const scale = (x: number) => (ratio === 1 ? x : x * ratio);
             // move each point
-            selectedStroke.points = selectedStroke.points.map((p) => [
+            stroke.points = stroke.points.map((p) => [
               p[0] + scale(dp[0]),
               p[1] + scale(dp[1]),
             ]);
-            //update bounding box
-            const bb = selectedStrokes.current.boundingBoxes[i];
+            //update(mutate) bounding box
+            const bb = selected.boundingBoxes[i];
             if (bb) {
               bb[0] = [bb[0][0] + dp[0], bb[0][1] + dp[1]];
               bb[1] = [bb[1][0] + dp[0], bb[1][1] + dp[1]];
             }
             // update reference point
-            selectedStrokes.current.point = canvasXY;
-            // show aftermath
-            // draw strokes
-            if (ctx) {
-              ctx.fillStyle = bgColour;
-              ctx.fillRect(0, 0, size, size);
-              draggedHistory.current.forEach((stroke: Stroke) =>
-                drawOnCanvas(ctx, stroke, size, false)
-              );
-            }
+            selected.point = canvasXY;
           }
+
+          // draw strokes
+          const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+          if (ctx) {
+            ctx.fillStyle = bgColour;
+            ctx.fillRect(0, 0, size, size);
+            hist.forEach((stroke: Stroke) =>
+              drawOnCanvas(ctx, stroke, size, false)
+            );
+          }
+
           // draw bounding boxes
           const ctx2 = overlayRef.current?.getContext("2d", { alpha: true });
           if (ctx2) {
             ctx2.clearRect(0, 0, size, size);
-            ctx2.setLineDash(boundingBoxDash);
+            //ctx2.setLineDash(boundingBoxDash); // the previously set dash still holds
             selectedStrokes.current.boundingBoxes.forEach((bb) =>
               drawBoundingBox(ctx2, bb)
             );
           }
         } else {
-          const prevPoint =
-            currentStroke.current.points[
-              currentStroke.current.points.length - 1
-            ];
+          const current = currentStroke.current;
+          const prevPoint = current.points[current.points.length - 1];
           // ignore points that are sufficiently close, to save space
           // TODO: track all points here, write a wasm module to remove them before exporting the pic
           if (
             (prevPoint[0] - canvasXY[0]) ** 2 +
               (prevPoint[1] - canvasXY[1]) ** 2 >=
-            currentStroke.current.brushRadius ** 1
+            current.brushRadius ** 1
           ) {
-            currentStroke.current = {
-              // append canvasXY to current stroke
-              ...currentStroke.current,
-              points: [...currentStroke.current.points, canvasXY],
-            };
+            // append point to currentStroke
+            current.points = [...current.points, canvasXY];
             const ctx = canvasRef.current?.getContext("2d", { alpha: false });
-            if (ctx) drawOnCanvas(ctx, currentStroke.current, size);
+            if (ctx) drawOnCanvas(ctx, current, size);
           }
         }
       }
@@ -444,14 +411,14 @@ const Canvas = React.memo((props: any) => {
         const ctx = overlayRef.current?.getContext("2d", { alpha: true });
         if (ctx) {
           ctx.clearRect(0, 0, size, size);
-          ctx.beginPath();
           ctx.strokeStyle = "#000";
+          ctx.beginPath();
           ctx.arc(canvasXY[0], canvasXY[1], brushRadius, 0, 2 * Math.PI);
           ctx.stroke();
         }
       }
     },
-    [dragMode, size, bgColour, boundingBoxDash, brushRadius]
+    [dragMode, size, bgColour, brushRadius]
   );
 
   const handlePaintEnd = useCallback(
@@ -463,15 +430,13 @@ const Canvas = React.memo((props: any) => {
         if (!dragMode) {
           onStrokeDone(currentStroke.current); // inform parent of new stroke
         } else {
-          if (selectedStrokes.current.strokes) {
+          const selected = selectedStrokes.current;
+          if (selected.strokes.length) {
             if (onDragDone) {
               // signal drag op completion
-              onDragDone(
-                selectedStrokes.current.strokes,
-                draggedHistory.current
-              );
+              onDragDone(selected.strokes, draggedHistory.current);
               // clear selectedStrokes
-              selectedStrokes.current.strokes = [];
+              selected.strokes.length = 0;
             } else {
               // no onDragDone handler, clear changes and revert back to displayedHistory
               const ctx = canvasRef.current?.getContext("2d", { alpha: false });
@@ -489,7 +454,10 @@ const Canvas = React.memo((props: any) => {
 
       if (clearOverlay || dragMode) {
         const ctx = overlayRef.current?.getContext("2d", { alpha: true }); // has to be transparent
-        if (ctx) ctx.clearRect(0, 0, size, size); // clear overlay
+        if (ctx) {
+          ctx.setLineDash([]); // reset dash
+          ctx.clearRect(0, 0, size, size); // clear overlay
+        }
       }
     },
     [displayedHistory, dragMode, onDragDone, onStrokeDone, size, bgColour]
@@ -517,7 +485,7 @@ const Canvas = React.memo((props: any) => {
 
         if (ctx) {
           const ratio = size / stroke.size;
-          const scale = (x: number) => Math.floor(x * ratio);
+          const scale = (x: number) => Math.floor(0.5 + x * ratio);
           const scalePoint = (p: Point): Point => [scale(p[0]), scale(p[1])];
           const radius = Math.max(1, scale(stroke.brushRadius));
           const currentPoint = scalePoint(point);

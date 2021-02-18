@@ -26,7 +26,7 @@ export function _base64ToArrayBuffer(base64: string) {
 }
 
 export const getRandInRange = (min: number, max: number) => {
-  return Math.floor(Math.random() * (max + 1 - min) + min);
+  return Math.floor(0.5 + Math.random() * (max + 1 - min) + min);
 };
 
 export interface MainContext {

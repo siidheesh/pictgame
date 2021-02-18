@@ -15,7 +15,7 @@ const serverChannel = "pgserv";
 const raftChannel = "pgraft";
 
 const getRandInRange = (min, max) => {
-  return Math.floor(Math.random() * (max + 1 - min) + min);
+  return Math.floor(0.5 + Math.random() * (max + 1 - min) + min);
 };
 
 function _arrayBufferToBase64(buffer) {

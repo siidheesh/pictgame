@@ -181,7 +181,7 @@ const processData = async (source, payload) => {
         try {
           const ivenc1 = await encryptObject(sharedKeys[source], {
             type: "BOB_GUESSED",
-            guess: `${payload.label}? 🤭`,
+            guess: `${payload.guess}? 🤭`,
           });
           pub.publish(
             clientChannel,
