@@ -2,7 +2,7 @@
 // network congestions could cause hb timeouts if the message broker is not on the same machine as the server instances
 
 const redisOpt = {
-  host: "192.168.1.65",
+  host: "192.168.1.31",
   port: 6379,
   enableAutoPipelining: true,
 };

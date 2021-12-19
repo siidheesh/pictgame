@@ -275,7 +275,7 @@ const Canvas = React.memo((props: any) => {
   const handlePaintStart = useCallback(
     (x: number, y: number) => {
       //console.log("handlePaintStart");
-      const canvasXY = convertCoords(canvasRef, x, y);
+      const canvasXY = convertCoords(overlayRef, x, y);
       if (!drawMode.current) {
         drawMode.current = true;
         const selected = selectedStrokes.current;
@@ -336,7 +336,7 @@ const Canvas = React.memo((props: any) => {
   const handlePaint = useCallback(
     (x: number, y: number, drawOverlay = true) => {
       //console.log("handlePaint");
-      const canvasXY = convertCoords(canvasRef, x, y);
+      const canvasXY = convertCoords(overlayRef, x, y);
       if (drawMode.current) {
         if (dragMode) {
           const selected = selectedStrokes.current;
@@ -348,10 +348,9 @@ const Canvas = React.memo((props: any) => {
 
           // loop through each selected stroke
           for (const i in selected.strokes) {
-            const strokeIdx = selected.strokes[i];
             //reference to the stroke to be moved
-            const stroke = hist[strokeIdx];
-            // the displacement vector ratio is inverse in this case
+            const stroke = hist[selected.strokes[i]];
+            // the displacement vector ratio is inverted in this case
             const ratio = stroke.size / size;
             const scale = (x: number) => (ratio === 1 ? x : x * ratio);
             // move each point
@@ -396,7 +395,8 @@ const Canvas = React.memo((props: any) => {
           if (
             (prevPoint[0] - canvasXY[0]) ** 2 +
               (prevPoint[1] - canvasXY[1]) ** 2 >=
-            current.brushRadius ** 1
+              current.brushRadius ** 1 ||
+            current.points.length <= 2
           ) {
             // append point to currentStroke
             current.points = [...current.points, canvasXY];
